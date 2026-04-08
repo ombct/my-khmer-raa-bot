@@ -1,4 +1,3 @@
 aiogram
-groq
-pytz
-PyMuPDF
+SpeechRecognition
+pydub
