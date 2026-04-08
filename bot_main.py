@@ -54,13 +54,20 @@ async def send_welcome(message: types.Message):
         "📩 ទំនាក់ទំនង Admin៖ [OG_Raa1]\n\n"
         "សូមផ្ញើសារជាសំឡេង (Voice) ឬឯកសារ MP3 មកកាន់ខ្ញុំ ដើម្បីបំប្លែង!"
     )
-    await message.answer_photo(
-        photo="https://telegra.ph/file/0c1b0c0c0c0c0c0c0c0c0.jpg", # ដាក់ Link រូបភាពអ្នក
-        caption=welcome_text,
+  @dp.message(Command("start"))
+async def send_welcome(message: types.Message):
+    welcome_text = (
+        "👋 **សួស្ដី! ខ្ញុំគឺជា Bot បំប្លែងសំឡេងទៅជាអក្សរ**\n\n"
+        "រៀបចំដោយ៖ **THEARA Rupp**\n"
+        "📩 ទំនាក់ទំនង Admin៖ [OG_Raa1]\n\n"
+        "សូមផ្ញើសារជាសំឡេង (Voice) ឬឯកសារ MP3 មកកាន់ខ្ញុំ ដើម្បីបំប្លែង!"
+    )
+    # ប្តូរមកប្រើ answer ធម្មតា (មិនប្រើរូបភាព) ដើម្បីកុំឱ្យ Error
+    await message.answer(
+        welcome_text,
         reply_markup=get_main_keyboard(),
         parse_mode="Markdown"
     )
-
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
     msg = await message.answer("⏳ កំពុងដំណើរការបំប្លែង... សូមរង់ចាំបន្តិច")
