@@ -16,7 +16,7 @@ GROQ_API_KEY = os.getenv('GROQ_KEY')
 ADMIN_ID = int(os.getenv('ADMIN_ID', '7859553795'))
 TELEGRAM_ADMIN_URL = os.getenv('ADMIN_URL', 'https://t.me/OG_Raa1')
 KH_TIMEZONE = pytz.timezone('Asia/Phnom_Penh')
-DB_PATH = os.getenv('DB_PATH', 'bot_database.db')
+DB_PATH = os.getenv('DB_PATH', '/app/data/bot_database.db')
 
 groq_client = Groq(api_key=GROQ_API_KEY)
 bot = Bot(token=API_TOKEN)
