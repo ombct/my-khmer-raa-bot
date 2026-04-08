@@ -1,9 +1,7 @@
 import os
 import sqlite3
 import logging
-import pytz
 import asyncio
-from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -12,10 +10,8 @@ from groq import Groq
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
 GROQ_API_KEY = os.getenv('GROQ_KEY')
-ADMIN_ID = int(os.getenv('ADMIN_ID', '7859553795'))
-TELEGRAM_ADMIN_URL = os.getenv('ADMIN_URL', 'https://t.me/OG_Raa1')
-KH_TIMEZONE = pytz.timezone('Asia/Phnom_Penh')
-DB_PATH = "bot_database.db"
+ADMIN_URL = os.getenv('ADMIN_URL', 'https://t.me/OG_Raa1')
+DB_PATH = "bot_database.db" # កែទីតាំងឱ្យសាមញ្ញបំផុតដើម្បីកុំឱ្យ Error
 
 # Initialize Clients
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -25,38 +21,26 @@ logging.basicConfig(level=logging.INFO)
 
 # --- DATABASE LOGIC ---
 def init_db():
-    # លុបការប្រើ os.makedirs ប្រសិនបើវាបង្កបញ្ហា
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users 
-                     (user_id INTEGER PRIMARY KEY, lang_code TEXT DEFAULT 'km')''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)''')
     conn.commit()
     conn.close()
-init_db()
 
-# --- HELPERS ---
-def get_main_keyboard():
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👤 ទាក់ទង Admin (Telegram)", url=TELEGRAM_ADMIN_URL)],
-        [InlineKeyboardButton(text="🔵 Facebook Support", url="https://www.facebook.com/share/15pZ6pZ6pZ/")]
-    ])
-    return keyboard
+init_db()
 
 # --- HANDLERS ---
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
-    welcome_text = (
-        "👋 **សួស្ដី! ខ្ញុំគឺជា Bot បំប្លែងសំឡេងទៅជាអក្សរ**\n\n"
-        "រៀបចំដោយ៖ **THEARA Rupp**\n"
-        "📩 ទំនាក់ទំនង Admin៖ https://t.me/OG_Raa1 \n\n"
-        "សូមផ្ញើសារជាសំឡេង (Voice) ឬឯកសារ MP3 មកកាន់ខ្ញុំ ដើម្បីបំប្លែង!"
-    )
-    await message.answer(welcome_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
+    welcome_text = "👋 សួស្ដី! ផ្ញើសំឡេងមកដើម្បីបំប្លែងជាអក្សរខ្មែរ។"
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👤 ទាក់ទង Admin", url=ADMIN_URL)]
+    ])
+    await message.answer(welcome_text, reply_markup=keyboard)
 
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
-    msg = await message.answer("⏳ កំពុងដំណើរការបំប្លែង... សូមរង់ចាំបន្តិច")
-    
+    msg = await message.answer("⏳ កំពុងបំប្លែង... សូមរង់ចាំ")
     file_id = message.voice.file_id if message.voice else message.audio.file_id
     file = await bot.get_file(file_id)
     file_path = f"{file_id}.ogg"
@@ -67,19 +51,14 @@ async def handle_audio(message: types.Message):
             transcription = groq_client.audio.transcriptions.create(
                 file=(file_path, audio_file.read()),
                 model="whisper-large-v3",
-                prompt="នេះគឺជាការបំប្លែងសំឡេងជាភាសាខ្មែរ។ សូមសរសេរជាអក្សរខ្មែរឱ្យបានត្រឹមត្រូវតាមអក្ខរាវិរុទ្ធ។",
-                response_format="text",
-                language="km"
+                prompt="នេះគឺជាការបំប្លែងសំឡេងជាភាសាខ្មែរ។ សូមសរសេរជាអក្សរខ្មែរឱ្យបានត្រឹមត្រូវ។",
+                language="km" # បង្ខំឱ្យ AI ប្រើភាសាខ្មែរ
             )
-
-        result_text = f"📝 **ការបំប្លែងសំឡេង៖**\n\n{transcription}\n\n• By THEARA Rupp"
-        await msg.edit_text(result_text, parse_mode="Markdown")
-
+        await msg.edit_text(f"📝 លទ្ធផល៖\n\n{transcription.text}")
     except Exception as e:
-        await msg.edit_text(f"❌ កើតមានកំហុស៖ {str(e)}")
+        await msg.edit_text(f"❌ កំហុស៖ {str(e)}")
     finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        if os.path.exists(file_path): os.remove(file_path)
 
 async def main():
     await dp.start_polling(bot)
