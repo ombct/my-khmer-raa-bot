@@ -1,3 +1,4 @@
 aiogram
 SpeechRecognition
+groq
 pydub
