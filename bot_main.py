@@ -16,7 +16,7 @@ from pydub import AudioSegment
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
 GROQ_API_KEY = os.getenv('GROQ_KEY')
-ADMIN_URL = "https://t.me/OG_Raa1"
+ADMIN_URL = "https://t.me/OG_Raa1"  # តំណភ្ជាប់ Admin ដែលប្អូនឱ្យបន្ថែម
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
@@ -55,7 +55,26 @@ def format_timestamp(seconds: float):
     millis = int(td.microseconds / 1000)
     return f"{hours:02}:{minutes:02}:{secs:02},{millis:03}"
 
-# --- HANDLERS ---
+# --- បន្ថែម៖ Handler សម្រាប់ព័ត៌មាន Bot ---
+@dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
+async def cmd_info(message: types.Message):
+    info_text = (
+        "🤖 **ព័ត៌មានអំពី Bot**\n\n"
+        "• **បេសកកម្ម៖** បំប្លែងសំឡេងទៅជាអត្ថបទ និងឯកសារ SRT\n"
+        "• **បច្ចេកវិទ្យា៖** Google Speech API & Groq Whisper-v3\n"
+        "• **កំណែប្រែ៖** v6.2 (Stable)\n"
+        "• **លក្ខណៈពិសេស៖** គាំទ្រអក្សរខ្មែរមានដៃជើង និងម៉ោងរត់ត្រឹមត្រូវ\n"
+        "• **រៀបចំដោយ៖** THEARA Rupp"
+    )
+    await message.answer(info_text, parse_mode="Markdown")
+# --- បន្ថែម៖ Handler សម្រាប់ទាក់ទង Admin ---
+@dp.message(F.text == "👤 ទាក់ទង Admin")
+async def cmd_admin(message: types.Message):
+    admin_btn = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💬 ផ្ញើសារទៅ Admin", url=ADMIN_URL)]
+    ])
+    await message.answer("ប្រសិនបើប្អូនមានបញ្ហា ឬចម្ងល់ផ្សេងៗ សូមចុចប៊ូតុងខាងក្រោម៖", reply_markup=admin_btn)
+ # --- HANDLERS ---
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
     welcome_text = (
