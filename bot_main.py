@@ -16,7 +16,7 @@ from pydub import AudioSegment
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
 GROQ_API_KEY = os.getenv('GROQ_KEY')
-ADMIN_URL = "https://t.me/OG_Raa1"
+ADMIN_URL = "https://t.me/OG_Raa1"  # តំណភ្ជាប់ Admin ដែលប្អូនឱ្យបន្ថែម
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
@@ -24,10 +24,10 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 recognizer = sr.Recognizer()
 logging.basicConfig(level=logging.INFO)
 
-# វចនានុក្រមរក្សាទុកភាសាដែល User ជ្រើសរើស (ក្នុងផលិតកម្មគួរប្រើ Database)
+# វចនានុក្រមរក្សាទុកភាសាដែល User ជ្រើសរើស ( Default: ខ្មែរ)
 user_languages = {}
 
-# --- KEYBOARDS ---
+# --- KEYBOARDS (Menu បន្ថែមប៊ូតុង Admin និងព័ត៌មាន) ---
 def get_main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -59,11 +59,33 @@ def format_timestamp(seconds: float):
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
     welcome_text = (
-        "🎙 **សូមស្វាគមន៍មកកាន់ Bot បំប្លែងសំឡេងពហុភាសា!**\n\n"
-        "សូមជ្រើសរើសភាសាបំប្លែងរបស់អ្នកខាងក្រោម៖"
+        "🎙 **សូមស្វាគមន៍មកកាន់ Bot បំប្លែងសំឡេង!**\n\n"
+        "កូដត្រូវបានពង្រឹងឱ្យស្គាល់ **អក្សរខ្មែរមានដៃជើង** ត្រឹមត្រូវ\n"
+        "សូមជ្រើសរើសភាសាបំប្លែងរបស់អ្នកខាងក្រោម ឬផ្ញើសំឡេងមកភ្លាមៗបាន!"
     )
-    await message.answer(welcome_text, reply_markup=get_main_menu())
+    await message.answer(welcome_text, reply_markup=get_main_menu(), parse_mode="Markdown")
     await message.answer("ជ្រើសរើសភាសាគោលដៅ៖", reply_markup=get_lang_keyboard())
+
+# --- បន្ថែម៖ Handler សម្រាប់ព័ត៌មាន Bot ---
+@dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
+async def cmd_info(message: types.Message):
+    info_text = (
+        "🤖 **ព័ត៌មានអំពី Bot**\n\n"
+        "• **បេសកកម្ម៖** បំប្លែងសំឡេងទៅជាអត្ថបទ និងឯកសារ SRT\n"
+        "• **បច្ចេកវិទ្យា៖** Google Speech API & Groq Whisper-v3\n"
+        "• **កំណែប្រែ៖** v6.2 (Stable)\n"
+        "• **លក្ខណៈពិសេស៖** គាំទ្រអក្សរខ្មែរមានដៃជើង និងម៉ោងរត់ត្រឹមត្រូវ\n"
+        "• **រៀបចំដោយ៖** THEARA Rupp"
+    )
+    await message.answer(info_text, parse_mode="Markdown")
+
+# --- បន្ថែម៖ Handler សម្រាប់ទាក់ទង Admin ---
+@dp.message(F.text == "👤 ទាក់ទង Admin")
+async def cmd_admin(message: types.Message):
+    admin_btn = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💬 ផ្ញើសារទៅ Admin", url=ADMIN_URL)]
+    ])
+    await message.answer("ប្រសិនបើប្អូនមានបញ្ហា ឬចម្ងល់ផ្សេងៗ សូមចុចប៊ូតុងខាងក្រោម៖", reply_markup=admin_btn)
 
 @dp.message(F.text == "🌐 ប្តូរភាសា (Language)")
 async def change_lang(message: types.Message):
@@ -73,18 +95,15 @@ async def change_lang(message: types.Message):
 async def process_lang_selection(callback: types.CallbackQuery):
     lang_code = callback.data.split("_")[1]
     user_languages[callback.from_user.id] = lang_code
-    
     names = {"km": "ខ្មែរ 🇰🇭", "en": "English 🇺🇸", "zh": "Chinese 🇨🇳"}
     await callback.message.edit_text(f"✅ បានកំណត់យកភាសា៖ **{names[lang_code]}**")
     await callback.answer()
 
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
-    # ទាញយកភាសាដែល User បានរើស (បើអត់មាន យកខ្មែរជា Default)
     lang = user_languages.get(message.from_user.id, "km")
     google_lang = {"km": "km-KH", "en": "en-US", "zh": "zh-CN"}[lang]
-    
-    msg = await message.answer("⏳ កំពុងដំណើរការ... សូមរង់ចាំ")
+    msg = await message.answer(f"⏳ កំពុងដំណើរការបំប្លែងភាសា {lang.upper()}... សូមរង់ចាំ")
     
     file_id = message.voice.file_id if message.voice else message.audio.file_id
     file = await bot.get_file(file_id)
@@ -96,22 +115,20 @@ async def handle_audio(message: types.Message):
         audio_segment = AudioSegment.from_file(ogg_path)
         audio_segment.export(wav_path, format="wav")
 
-        # ១. បំប្លែងជាអត្ថបទ (Google API)
         with sr.AudioFile(wav_path) as source:
             audio_data = recognizer.record(source)
-            text_result = recognizer.recognize_google(audio_data, language=google_lang)
+            google_text = recognizer.recognize_google(audio_data, language=google_lang)
 
-        # ២. បង្កើត SRT (Groq Whisper)
         with open(wav_path, "rb") as audio_file:
             response = groq_client.audio.transcriptions.create(
                 file=(wav_path, audio_file.read()),
                 model="whisper-large-v3",
                 response_format="verbose_json",
-                language=lang
+                language=lang,
+                prompt="នេះគឺជាសំឡេងនិយាយភាសាខ្មែរ។ សូមសរសេរជាអក្សរខ្មែរឱ្យបានត្រឹមត្រូវបំផុតតាមអក្ខរាវិរុទ្ធ មានជើងអក្សរច្បាស់លាស់។"
             )
 
-        # ផ្ញើលទ្ធផល
-        await message.answer(f"📝 **អត្ថបទបំប្លែង ({lang.upper()}):**\n\n{text_result}")
+        await message.answer(f"📝 **អត្ថបទបំប្លែងរួច៖**\n\n{google_text}")
 
         srt_content = ""
         for i, segment in enumerate(response.segments, start=1):
@@ -120,8 +137,7 @@ async def handle_audio(message: types.Message):
             srt_content += f"{i}\n{start} --> {end}\n{segment['text'].strip()}\n\n"
 
         srt_file = BufferedInputFile(srt_content.encode('utf-8'), filename=f"sub_{lang}.srt")
-        await message.answer_document(srt_file, caption=f"🎬 ឯកសារ SRT ភាសា {lang.upper()} រួចរាល់!")
-        
+        await message.answer_document(srt_file, caption="🎬 ឯកសារ SRT របស់អ្នករួចរាល់ហើយ!")
         await msg.delete()
 
     except Exception as e:
