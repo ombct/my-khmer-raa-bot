@@ -10,31 +10,44 @@ from aiogram.types import (
     InlineKeyboardButton, InlineKeyboardMarkup, 
     BufferedInputFile
 )
+from groq import Groq
 from pydub import AudioSegment
 
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
+GROQ_API_KEY = os.getenv('GROQ_KEY')
 ADMIN_URL = "https://t.me/OG_Raa1"
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
-logging.basicConfig(level=logging.INFO)
+groq_client = Groq(api_key=GROQ_API_KEY)
 recognizer = sr.Recognizer()
+logging.basicConfig(level=logging.INFO)
 
-# --- KEYBOARDS (MENU BAR) ---
+# វចនានុក្រមរក្សាទុកភាសាដែល User ជ្រើសរើស (ក្នុងផលិតកម្មគួរប្រើ Database)
+user_languages = {}
+
+# --- KEYBOARDS ---
 def get_main_menu():
-    keyboard = ReplyKeyboardMarkup(
+    return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🔄 ប្តូរភាសា (Language)"), KeyboardButton(text="ℹ️ ព័ត៌មាន Bot")],
+            [KeyboardButton(text="🌐 ប្តូរភាសា (Language)"), KeyboardButton(text="ℹ️ ព័ត៌មាន Bot")],
             [KeyboardButton(text="👤 ទាក់ទង Admin")]
         ],
         resize_keyboard=True
     )
+
+def get_lang_keyboard():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🇰🇭 ខ្មែរ (Khmer)", callback_data="setlang_km")],
+        [InlineKeyboardButton(text="🇺🇸 អង់គ្លេស (English)", callback_data="setlang_en")],
+        [InlineKeyboardButton(text="🇨🇳 ចិន (Chinese)", callback_data="setlang_zh")]
+    ])
     return keyboard
 
 # --- SRT HELPER ---
-def format_timestamp(milliseconds: int):
-    td = timedelta(milliseconds=milliseconds)
+def format_timestamp(seconds: float):
+    td = timedelta(seconds=seconds)
     total_seconds = int(td.total_seconds())
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
@@ -46,59 +59,76 @@ def format_timestamp(milliseconds: int):
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
     welcome_text = (
-        "🎙 **សូមស្វាគមន៍មកកាន់ Bot បំប្លែងសំឡេង!**\n\n"
-        "• បំប្លែងសំឡេងទៅជាអត្ថបទ (Text)\n"
-        "• បង្កើតឯកសារ SRT Subtitle\n"
-        "• គាំទ្រភាសាខ្មែរ 🇰🇭 (Google AI)"
+        "🎙 **សូមស្វាគមន៍មកកាន់ Bot បំប្លែងសំឡេងពហុភាសា!**\n\n"
+        "សូមជ្រើសរើសភាសាបំប្លែងរបស់អ្នកខាងក្រោម៖"
     )
-    await message.answer(welcome_text, reply_markup=get_main_menu(), parse_mode="Markdown")
+    await message.answer(welcome_text, reply_markup=get_main_menu())
+    await message.answer("ជ្រើសរើសភាសាគោលដៅ៖", reply_markup=get_lang_keyboard())
 
-@dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
-async def cmd_info(message: types.Message):
-    await message.answer("🤖 **Bot Version 4.0**\nEngine: SpeechRecognition & Pydub\nDeveloped by: THEARA Rupp", parse_mode="Markdown")
+@dp.message(F.text == "🌐 ប្តូរភាសា (Language)")
+async def change_lang(message: types.Message):
+    await message.answer("សូមជ្រើសរើសភាសាដែលអ្នកចង់បំប្លែង៖", reply_markup=get_lang_keyboard())
 
-@dp.message(F.text == "👤 ទាក់ទង Admin")
-async def cmd_admin(message: types.Message):
-    await message.answer(f"ទាក់ទងមកកាន់៖ {ADMIN_URL}")
+@dp.callback_query(F.data.startswith("setlang_"))
+async def process_lang_selection(callback: types.CallbackQuery):
+    lang_code = callback.data.split("_")[1]
+    user_languages[callback.from_user.id] = lang_code
+    
+    names = {"km": "ខ្មែរ 🇰🇭", "en": "English 🇺🇸", "zh": "Chinese 🇨🇳"}
+    await callback.message.edit_text(f"✅ បានកំណត់យកភាសា៖ **{names[lang_code]}**")
+    await callback.answer()
 
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
-    msg = await message.answer("⏳ កំពុងស្ដាប់ និងបំប្លែង... សូមរង់ចាំ")
+    # ទាញយកភាសាដែល User បានរើស (បើអត់មាន យកខ្មែរជា Default)
+    lang = user_languages.get(message.from_user.id, "km")
+    google_lang = {"km": "km-KH", "en": "en-US", "zh": "zh-CN"}[lang]
+    
+    msg = await message.answer("⏳ កំពុងដំណើរការ... សូមរង់ចាំ")
     
     file_id = message.voice.file_id if message.voice else message.audio.file_id
     file = await bot.get_file(file_id)
-    
     ogg_path = f"{file_id}.ogg"
     wav_path = f"{file_id}.wav"
-    
     await bot.download_file(file.file_path, ogg_path)
 
     try:
-        # បំប្លែង File ទៅជា WAV សម្រាប់ SpeechRecognition
         audio_segment = AudioSegment.from_file(ogg_path)
         audio_segment.export(wav_path, format="wav")
 
+        # ១. បំប្លែងជាអត្ថបទ (Google API)
         with sr.AudioFile(wav_path) as source:
             audio_data = recognizer.record(source)
-            # ប្រើ Google Recognition ជាមួយភាសាខ្មែរ តាមសំណូមពរ
-            text = recognizer.recognize_google(audio_data, language="km-KH")
+            text_result = recognizer.recognize_google(audio_data, language=google_lang)
 
-        # ១. ផ្ញើអត្ថបទធម្មតា
-        await message.answer(f"📝 **លទ្ធផលអត្ថបទ៖**\n\n{text}")
+        # ២. បង្កើត SRT (Groq Whisper)
+        with open(wav_path, "rb") as audio_file:
+            response = groq_client.audio.transcriptions.create(
+                file=(wav_path, audio_file.read()),
+                model="whisper-large-v3",
+                response_format="verbose_json",
+                language=lang
+            )
 
-        # ២. បង្កើត SRT (ទម្រង់សាមញ្ញសម្រាប់ Google API)
-        duration = len(audio_segment)
-        srt_content = f"1\n00:00:00,000 --> {format_timestamp(duration)}\n{text}\n"
-        srt_file = BufferedInputFile(srt_content.encode('utf-8'), filename="subtitle.srt")
-        await message.answer_document(srt_file, caption="🎬 ឯកសារ SRT របស់អ្នករួចរាល់ហើយ!")
+        # ផ្ញើលទ្ធផល
+        await message.answer(f"📝 **អត្ថបទបំប្លែង ({lang.upper()}):**\n\n{text_result}")
 
+        srt_content = ""
+        for i, segment in enumerate(response.segments, start=1):
+            start = format_timestamp(segment['start'])
+            end = format_timestamp(segment['end'])
+            srt_content += f"{i}\n{start} --> {end}\n{segment['text'].strip()}\n\n"
+
+        srt_file = BufferedInputFile(srt_content.encode('utf-8'), filename=f"sub_{lang}.srt")
+        await message.answer_document(srt_file, caption=f"🎬 ឯកសារ SRT ភាសា {lang.upper()} រួចរាល់!")
+        
         await msg.delete()
 
     except Exception as e:
         await msg.edit_text(f"❌ កំហុស៖ {str(e)}")
     finally:
-        for path in [ogg_path, wav_path]:
-            if os.path.exists(path): os.remove(path)
+        for p in [ogg_path, wav_path]:
+            if os.path.exists(p): os.remove(p)
 
 async def main():
     await dp.start_polling(bot)
