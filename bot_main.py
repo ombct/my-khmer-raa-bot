@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO)
 
 user_languages = {}
 
-# --- KEYBOARDS ---
+# --- KEYBOARDS (Menu Bar) ---
 def get_main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -55,42 +55,54 @@ def format_timestamp(seconds: float):
     return f"{hours:02}:{minutes:02}:{secs:02},{millis:03}"
 
 # --- HANDLERS ---
+
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
     welcome_text = (
-        "🎙 **Bot បំប្លែងសំឡេងជំនាន់ថ្មី (Mixed Language)!**\n\n"
-        "✅ ស្គាល់អក្សរខ្មែរមានដៃជើងច្បាស់លាស់\n"
-        "✅ គាំទ្រការនិយាយខ្មែរលាយអង់គ្លេសក្នុងពេលតែមួយ\n"
-        "✅ បង្កើត SRT ដែលមានម៉ោងរត់ត្រូវចំមាត់និយាយ"
+        "🎙 **សូមស្វាគមន៍មកកាន់ Bot បកប្រែសំឡេងឆ្លាតវៃ!**\n\n"
+        "✨ **ចំណុចពិសេស៖**\n"
+        "✅ គាំទ្រការនិយាយខ្មែរលាយអង់គ្លេស (Mixed Language)\n"
+        "✅ រក្សាអក្ខរាវិរុទ្ធខ្មែរមានដៃជើងត្រឹមត្រូវ ១០០%\n"
+        "✅ បង្កើតឯកសារ SRT ដែលមាន Time Sync ល្អបំផុត"
     )
     await message.answer(welcome_text, reply_markup=get_main_menu(), parse_mode="Markdown")
-    await message.answer("សូមជ្រើសរើសភាសាគោលដៅ៖", reply_markup=get_lang_keyboard())
+    await message.answer("សូមជ្រើសរើសភាសាដែលប្អូនចង់ប្រើ៖", reply_markup=get_lang_keyboard())
 
+# ប៊ូតុងព័ត៌មាន Bot
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
-    await message.answer("🤖 **SomlengSrtBot v8.0**\nបច្ចេកវិទ្យា៖ Groq Whisper-v3\nសមត្ថភាព៖ ខ្មែរលាយអង់គ្លេស (Mixed)\nអ្នកអភិវឌ្ឍន៍៖ THEARA Rupp", parse_mode="Markdown")
+    info_text = (
+        "🤖 **SomlengSrtBot v8.5**\n"
+        "• បច្ចេកវិទ្យា៖ Groq Whisper-v3 (Large)\n"
+        "• សមត្ថភាព៖ បំប្លែងខ្មែរលាយអង់គ្លេស និងបង្កើត SRT\n"
+        "• រៀបចំដោយ៖ THEARA RUPP"
+    )
+    await message.answer(info_text, parse_mode="Markdown")
 
+# ប៊ូតុងទាក់ទង Admin
 @dp.message(F.text == "👤 ទាក់ទង Admin")
 async def cmd_admin(message: types.Message):
-    admin_btn = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="💬 ផ្ញើសារទៅ Admin", url=ADMIN_URL)]])
-    await message.answer("សម្រាប់ជំនួយបច្ចេកទេស សូមទាក់ទង Admin៖", reply_markup=admin_btn)
+    admin_btn = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💬 ផ្ញើសារទៅកាន់ Admin", url=ADMIN_URL)]
+    ])
+    await message.answer("ប្រសិនបើប្អូនមានបញ្ហា ឬចម្ងល់ សូមទាក់ទង Admin តាមរយៈប៊ូតុងខាងក្រោម៖", reply_markup=admin_btn)
 
 @dp.message(F.text == "🌐 ប្តូរភាសា (Language)")
 async def change_lang(message: types.Message):
-    await message.answer("សូមជ្រើសរើសភាសា៖", reply_markup=get_lang_keyboard())
+    await message.answer("សូមជ្រើសរើសភាសាគោលដៅ៖", reply_markup=get_lang_keyboard())
 
 @dp.callback_query(F.data.startswith("setlang_"))
 async def process_lang_selection(callback: types.CallbackQuery):
     lang_code = callback.data.split("_")[1]
     user_languages[callback.from_user.id] = lang_code
     names = {"km": "ខ្មែរលាយអង់គ្លេស 🇰🇭🇺🇸", "en": "English 🇺🇸", "zh": "Chinese 🇨🇳"}
-    await callback.message.edit_text(f"✅ កំណត់យកភាសា៖ **{names[lang_code]}**")
+    await callback.message.edit_text(f"✅ បានកំណត់យកភាសា៖ **{names[lang_code]}**")
     await callback.answer()
 
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
     lang = user_languages.get(message.from_user.id, "km")
-    msg = await message.answer("⏳ កំពុងបំប្លែងភាសាខ្មែរ និងអង់គ្លេសចម្រុះ... សូមរង់ចាំ")
+    msg = await message.answer("⏳ កំពុងស្តាប់ និងបំប្លែងភាសាចម្រុះ... សូមរង់ចាំ")
     
     file_id = message.voice.file_id if message.voice else message.audio.file_id
     file = await bot.get_file(file_id)
@@ -99,14 +111,15 @@ async def handle_audio(message: types.Message):
     await bot.download_file(file.file_path, ogg_path)
 
     try:
+        # បំប្លែង OGG ទៅ WAV
         audio_segment = AudioSegment.from_file(ogg_path)
         audio_segment.export(wav_path, format="wav")
 
-        # គន្លឹះសំខាន់៖ Prompt សម្រាប់ឱ្យ AI ស្គាល់ភាសាលាយគ្នា និងអក្សរខ្មែរមានជើង
+        # Prompt ពិសេសដើម្បីឱ្យ AI សរសេរខ្មែរមានជើង និងរក្សាពាក្យអង់គ្លេស
         mixed_prompt = (
             "នេះគឺជាសំឡេងនិយាយភាសាខ្មែរ ដែលអាចមានលាយជាមួយពាក្យអង់គ្លេសខ្លះៗ។ "
             "សូមសរសេរជាអក្សរខ្មែរឱ្យបានត្រឹមត្រូវតាមអក្ខរាវិរុទ្ធ មានជើងអក្សរច្បាស់លាស់ "
-            "ហើយប្រសិនបើមានពាក្យអង់គ្លេស សូមរក្សាវាជាអក្សរអង់គ្លេសដដែល។"
+            "ហើយប្រសិនបើមានពាក្យអង់គ្លេស សូមរក្សាទុកជាអក្សរអង់គ្លេសដដែល។"
         ) if lang == "km" else ""
 
         with open(wav_path, "rb") as audio_file:
@@ -118,20 +131,18 @@ async def handle_audio(message: types.Message):
                 prompt=mixed_prompt
             )
 
-        # ១. ផ្ញើអត្ថបទបំប្លែងរួច
-        await message.answer(f"📝 **អត្ថបទបំប្លែងរួច (Mixed):**\n\n{response.text}")
+        # ផ្ញើអត្ថបទបំប្លែងរួច
+        await message.answer(f"📝 **អត្ថបទបំប្លែងរួច៖**\n\n{response.text}")
 
-        # ២. បង្កើត SRT ដែលមានអក្សរខ្មែរមានដៃជើង និង Time-Sync ត្រឹមត្រូវ
+        # បង្កើតឯកសារ SRT (UTF-8)
         srt_content = ""
         for i, segment in enumerate(response.segments, start=1):
             start = format_timestamp(segment['start'])
             end = format_timestamp(segment['end'])
-            text = segment['text'].strip()
-            srt_content += f"{i}\n{start} --> {end}\n{text}\n\n"
+            srt_content += f"{i}\n{start} --> {end}\n{segment['text'].strip()}\n\n"
 
-        srt_file = BufferedInputFile(srt_content.encode('utf-8'), filename=f"subtitle_mixed.srt")
-        await message.answer_document(srt_file, caption="🎬 ឯកសារ SRT (ខ្មែរ+អង់គ្លេស) របស់ប្អូនរួចរាល់ហើយ!")
-        
+        srt_file = BufferedInputFile(srt_content.encode('utf-8'), filename=f"sub_mixed.srt")
+        await message.answer_document(srt_file, caption="🎬 ឯកសារ SRT (ខ្មែរ+អង់គ្លេស) រួចរាល់ហើយ!")
         await msg.delete()
 
     except Exception as e:
