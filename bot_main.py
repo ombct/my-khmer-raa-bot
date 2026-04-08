@@ -11,10 +11,10 @@ from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboar
 from groq import Groq
 
 # --- CONFIGURATION ---
-API_TOKEN = '8625986459:AAF7pTil2tV5GfL1VIYvAxE1tIg5kzGShqY'
-GROQ_API_KEY = 'Gsk_IqkjIZEU1FM3qDHu60pkWGdyb3FYJSstjUdxio12jDGtmWJoAfX0'
-ADMIN_ID = 7859553795  
-TELEGRAM_ADMIN_URL = "https://t.me/OG_Raa1" 
+API_TOKEN = os.getenv('BOT_TOKEN')
+GROQ_API_KEY = os.getenv('GROQ_KEY')
+ADMIN_ID = int(os.getenv('ADMIN_ID', '7859553795'))
+TELEGRAM_ADMIN_URL = os.getenv('ADMIN_URL', 'https://t.me/OG_Raa1')
 KH_TIMEZONE = pytz.timezone('Asia/Phnom_Penh')
 DB_PATH = os.getenv('DB_PATH', 'bot_database.db')
 
