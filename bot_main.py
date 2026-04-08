@@ -24,7 +24,6 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 recognizer = sr.Recognizer()
 logging.basicConfig(level=logging.INFO)
 
-# វចនានុក្រមរក្សាទុកភាសាដែល User ជ្រើសរើស ( Default: ខ្មែរ)
 user_languages = {}
 
 # --- KEYBOARDS ---
@@ -39,9 +38,9 @@ def get_main_menu():
 
 def get_lang_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🇰🇭 ខ្មែរ (Khmer)", callback_data="setlang_km")],
-        [InlineKeyboardButton(text="🇺🇸 អង់គ្លេស (English)", callback_data="setlang_en")],
-        [InlineKeyboardButton(text="🇨🇳 ចិន (Chinese)", callback_data="setlang_zh")]
+        [InlineKeyboardButton(text="🇰🇭 ខ្មែរ (Khmer/English Mixed)", callback_data="setlang_km")],
+        [InlineKeyboardButton(text="🇺🇸 English Only", callback_data="setlang_en")],
+        [InlineKeyboardButton(text="🇨🇳 Chinese (中文)", callback_data="setlang_zh")]
     ])
     return keyboard
 
@@ -55,56 +54,43 @@ def format_timestamp(seconds: float):
     millis = int(td.microseconds / 1000)
     return f"{hours:02}:{minutes:02}:{secs:02},{millis:03}"
 
-# --- បន្ថែម៖ Handler សម្រាប់ព័ត៌មាន Bot ---
-@dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
-async def cmd_info(message: types.Message):
-    info_text = (
-        "🤖 **ព័ត៌មានអំពី Bot**\n\n"
-        "• **បេសកកម្ម៖** បំប្លែងសំឡេងទៅជាអត្ថបទ និងឯកសារ SRT\n"
-        "• **បច្ចេកវិទ្យា៖** Google Speech API & Groq Whisper-v3\n"
-        "• **កំណែប្រែ៖** v6.2 (Stable)\n"
-        "• **លក្ខណៈពិសេស៖** គាំទ្រអក្សរខ្មែរមានដៃជើង និងម៉ោងរត់ត្រឹមត្រូវ\n"
-        "• **រៀបចំដោយ៖** THEARA Rupp"
-    )
-    await message.answer(info_text, parse_mode="Markdown")
-# --- បន្ថែម៖ Handler សម្រាប់ទាក់ទង Admin ---
-@dp.message(F.text == "👤 ទាក់ទង Admin")
-async def cmd_admin(message: types.Message):
-    admin_btn = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💬 ផ្ញើសារទៅ Admin", url=ADMIN_URL)]
-    ])
-    await message.answer("ប្រសិនបើបងប្អូនមានបញ្ហា ឬចម្ងល់ផ្សេងៗ សូមចុចប៊ូតុងខាងក្រោម៖", reply_markup=admin_btn)    
 # --- HANDLERS ---
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
     welcome_text = (
-        "🎙 **សូមស្វាគមន៍មកកាន់ Bot បំប្លែងសំឡេង!**\n\n"
-        "កូដត្រូវបានពង្រឹងឱ្យស្គាល់ **អក្សរខ្មែរមានដៃជើង** ត្រឹមត្រូវ (v6.1)\n"
-        "សូមជ្រើសរើសភាសាបំប្លែងរបស់អ្នកខាងក្រោម៖"
+        "🎙 **Bot បំប្លែងសំឡេងជំនាន់ថ្មី!**\n\n"
+        "✨ **ចំណុចពិសេស៖** គាំទ្រការនិយាយខ្មែរលាយអង់គ្លេស\n"
+        "✅ អក្សរខ្មែរមានដៃជើង និងពាក្យអង់គ្លេសត្រឹមត្រូវ\n"
+        "✅ បង្កើតឯកសារ SRT ដែលមាន Time Sync ល្អបំផុត"
     )
     await message.answer(welcome_text, reply_markup=get_main_menu(), parse_mode="Markdown")
-    await message.answer("ជ្រើសរើសភាសាគោលដៅ៖", reply_markup=get_lang_keyboard())
+    await message.answer("សូមជ្រើសរើសភាសាគោលដៅ៖", reply_markup=get_lang_keyboard())
+
+@dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
+async def cmd_info(message: types.Message):
+    await message.answer("🤖 **Bot Version 7.0**\nបច្ចេកវិទ្យា៖ Groq AI\nជំនាញ៖ បំប្លែងខ្មែរលាយអង់គ្លេស\nអ្នកអភិវឌ្ឍន៍៖ THEARA Rupp", parse_mode="Markdown")
+
+@dp.message(F.text == "👤 ទាក់ទង Admin")
+async def cmd_admin(message: types.Message):
+    admin_btn = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="💬 ផ្ញើសារទៅ Admin", url=ADMIN_URL)]])
+    await message.answer("សម្រាប់ជំនួយផ្សេងៗ សូមទាក់ទង Admin៖", reply_markup=admin_btn)
 
 @dp.message(F.text == "🌐 ប្តូរភាសា (Language)")
 async def change_lang(message: types.Message):
-    await message.answer("សូមជ្រើសរើសភាសាដែលអ្នកចង់បំប្លែង៖", reply_markup=get_lang_keyboard())
+    await message.answer("សូមជ្រើសរើសភាសា៖", reply_markup=get_lang_keyboard())
 
 @dp.callback_query(F.data.startswith("setlang_"))
 async def process_lang_selection(callback: types.CallbackQuery):
     lang_code = callback.data.split("_")[1]
     user_languages[callback.from_user.id] = lang_code
-    
-    names = {"km": "ខ្មែរ 🇰🇭", "en": "English 🇺🇸", "zh": "Chinese 🇨🇳"}
-    await callback.message.edit_text(f"✅ បានកំណត់យកភាសា៖ **{names[lang_code]}**")
+    names = {"km": "ខ្មែរលាយអង់គ្លេស 🇰🇭🇺🇸", "en": "English 🇺🇸", "zh": "Chinese 🇨🇳"}
+    await callback.message.edit_text(f"✅ កំណត់យកភាសា៖ **{names[lang_code]}**")
     await callback.answer()
 
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
-    # ទាញយកភាសា (Default: ខ្មែរ)
     lang = user_languages.get(message.from_user.id, "km")
-    google_lang = {"km": "km-KH", "en": "en-US", "zh": "zh-CN"}[lang]
-    
-    msg = await message.answer("⏳ កំពុងស្តាប់ និងកំណត់ត្រាម៉ោងអក្សរ (SRT) ភាសា {}... សូមរង់ចាំ".format(lang.upper()))
+    msg = await message.answer("⏳ កំពុងស្តាប់ និងបំប្លែងភាសាចម្រុះ... សូមរង់ចាំ")
     
     file_id = message.voice.file_id if message.voice else message.audio.file_id
     file = await bot.get_file(file_id)
@@ -113,44 +99,35 @@ async def handle_audio(message: types.Message):
     await bot.download_file(file.file_path, ogg_path)
 
     try:
-        # បំប្លែងឯកសារទៅជា WAV សម្រាប់ SpeechRecognition
         audio_segment = AudioSegment.from_file(ogg_path)
         audio_segment.export(wav_path, format="wav")
 
-        # ១. ប្រើ SpeechRecognition (Google API) សម្រាប់អត្ថបទសង្ខេប
-        with sr.AudioFile(wav_path) as source:
-            audio_data = recognizer.record(source)
-            google_text = recognizer.recognize_google(audio_data, language=google_lang)
+        # កំណត់ Prompt ពិសេសសម្រាប់ភាសាខ្មែរលាយអង់គ្លេស
+        special_prompt = (
+            "នេះគឺជាសំឡេងនិយាយភាសាខ្មែរ ដែលអាចមានលាយជាមួយពាក្យអង់គ្លេសខ្លះៗ។ "
+            "សូមសរសេរជាអក្សរខ្មែរឱ្យត្រឹមត្រូវ និងរក្សាពាក្យអង់គ្លេសជាអក្សរអង់គ្លេសដដែល "
+            "ឧទាហរណ៍៖ 'ខ្ញុំប្រើ iPhone' ឬ 'រៀន Computer'។"
+        ) if lang == "km" else ""
 
-        # ២. ប្រើ Groq Whisper ដើម្បីបង្កើត SRT ដែលមានម៉ោងរត់ត្រូវជាមួយមាត់និយាយ
         with open(wav_path, "rb") as audio_file:
-            # ចំណុចសំខាន់ដើម្បីឱ្យស្គាល់ខ្មែរមានដៃជើងគឺត្រង់ prompt នេះ
             response = groq_client.audio.transcriptions.create(
                 file=(wav_path, audio_file.read()),
                 model="whisper-large-v3",
-                response_format="verbose_json", # យកទិន្នន័យម៉ោងលម្អិត
+                response_format="verbose_json",
                 language=lang,
-                prompt="នេះគឺជាសំឡេងនិយាយភាសាខ្មែរ។ សូមសរសេរជាអក្សរខ្មែរឱ្យបានត្រឹមត្រូវបំផុតតាមអក្ខរាវិរុទ្ធ មានស្រៈត្រឹមត្រូវ មានជើងអក្សរច្បាស់លាស់ និងសញ្ញាខណ្ឌឱ្យបានច្បាស់លាស់។"
+                prompt=special_prompt
             )
 
-        # ផ្ញើអត្ថបទសង្ខេប (យកពី Google ព្រោះ Google recognize ខ្មែរបានត្រូវជាង Whisper នៅដុំៗ)
-        await message.answer(f"📝 **អត្ថបទបំប្លែងរួច ({lang.upper()}):**\n\n{google_text}")
+        await message.answer(f"📝 **អត្ថបទបំប្លែងរួច៖**\n\n{response.text}")
 
-        # បង្កើតឯកសារ SRT ពីទិន្នន័យ Groq (ព្រោះ Groq ផ្ដល់ Time-Sync ច្បាស់លាស់)
         srt_content = ""
         for i, segment in enumerate(response.segments, start=1):
             start = format_timestamp(segment['start'])
             end = format_timestamp(segment['end'])
-            # ពង្រឹងអក្សរក្នុង SRT ឱ្យមានដៃជើង និងមានរបៀបរៀបរយ
-            text = segment['text'].strip()
-            if not text: continue # រំលងបើអត់មានអក្សរ
-            
-            srt_content += f"{i}\n{start} --> {end}\n{text}\n\n"
+            srt_content += f"{i}\n{start} --> {end}\n{segment['text'].strip()}\n\n"
 
-        # បំប្លែងទៅជា File SRT ដោយប្រើ Encoding UTF-8 ដើម្បីឱ្យស្គាល់ខ្មែរ
-        srt_file = BufferedInputFile(srt_content.encode('utf-8'), filename=f"sub_{lang}_sync.srt")
-        await message.answer_document(srt_file, caption=f"🎬 ឯកសារ SRT ភាសា {lang.upper()} ដែលមានម៉ោងរត់ត្រូវជាមួយមាត់និយាយ (v6.1 - High Khmer Accuracy)!")
-        
+        srt_file = BufferedInputFile(srt_content.encode('utf-8'), filename=f"sub_{lang}.srt")
+        await message.answer_document(srt_file, caption="🎬 ឯកសារ SRT ដែលបំប្លែងពាក្យខ្មែរ និងអង់គ្លេសរួចរាល់!")
         await msg.delete()
 
     except Exception as e:
