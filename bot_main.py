@@ -3,21 +3,19 @@ import sqlite3
 import logging
 import pytz
 import asyncio
-import fitz  # PyMuPDF
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from groq import Groq
 
 # --- CONFIGURATION ---
-# ទាញយកតម្លៃពី Railway Variables ដើម្បីសុវត្ថិភាព
 API_TOKEN = os.getenv('BOT_TOKEN')
 GROQ_API_KEY = os.getenv('GROQ_KEY')
 ADMIN_ID = int(os.getenv('ADMIN_ID', '7859553795'))
 TELEGRAM_ADMIN_URL = os.getenv('ADMIN_URL', 'https://t.me/OG_Raa1')
 KH_TIMEZONE = pytz.timezone('Asia/Phnom_Penh')
-DB_PATH = os.getenv('DB_PATH', '/app/data/bot_database.db')
+DB_PATH = os.getenv('DB_PATH', 'bot_database.db')
 
 # Initialize Clients
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -27,11 +25,10 @@ logging.basicConfig(level=logging.INFO)
 
 # --- DATABASE LOGIC ---
 def init_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS users 
-                     (user_id INTEGER PRIMARY KEY, lang_code TEXT DEFAULT 'km', words_per_sub INTEGER DEFAULT 30)''')
+                     (user_id INTEGER PRIMARY KEY, lang_code TEXT DEFAULT 'km')''')
     conn.commit()
     conn.close()
 
@@ -51,23 +48,11 @@ async def send_welcome(message: types.Message):
     welcome_text = (
         "👋 **សួស្ដី! ខ្ញុំគឺជា Bot បំប្លែងសំឡេងទៅជាអក្សរ**\n\n"
         "រៀបចំដោយ៖ **THEARA Rupp**\n"
-        "📩 ទំនាក់ទំនង Admin៖ [OG_Raa1]\n\n"
+        "📩 ទំនាក់ទំនង Admin៖ https://t.me/OG_Raa1 \n\n"
         "សូមផ្ញើសារជាសំឡេង (Voice) ឬឯកសារ MP3 មកកាន់ខ្ញុំ ដើម្បីបំប្លែង!"
     )
-  @dp.message(Command("start"))
-async def send_welcome(message: types.Message):
-    welcome_text = (
-        "👋 **សួស្ដី! ខ្ញុំគឺជា Bot បំប្លែងសំឡេងទៅជាអក្សរ**\n\n"
-        "រៀបចំដោយ៖ **THEARA Rupp**\n"
-        "📩 ទំនាក់ទំនង Admin៖ [OG_Raa1]\n\n"
-        "សូមផ្ញើសារជាសំឡេង (Voice) ឬឯកសារ MP3 មកកាន់ខ្ញុំ ដើម្បីបំប្លែង!"
-    )
-    # ប្តូរមកប្រើ answer ធម្មតា (មិនប្រើរូបភាព) ដើម្បីកុំឱ្យ Error
-    await message.answer(
-        welcome_text,
-        reply_markup=get_main_keyboard(),
-        parse_mode="Markdown"
-    )
+    await message.answer(welcome_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
+
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
     msg = await message.answer("⏳ កំពុងដំណើរការបំប្លែង... សូមរង់ចាំបន្តិច")
@@ -78,22 +63,16 @@ async def handle_audio(message: types.Message):
     await bot.download_file(file.file_path, file_path)
 
     try:
-        # បំប្លែងសំឡេងទៅជាអក្សរ (កំណត់ឱ្យស្គាល់ខ្មែរច្បាស់)
         with open(file_path, "rb") as audio_file:
             transcription = groq_client.audio.transcriptions.create(
                 file=(file_path, audio_file.read()),
                 model="whisper-large-v3",
-                prompt="នេះគឺជាការបំប្លែងសំឡេងជាភាសាខ្មែរ។ សូមសរសេរជាអក្សរខ្មែរឱ្យបានត្រឹមត្រូវតាមអក្ខរាវិរុទ្ធ មានជើង និងស្រៈត្រឹមត្រូវ។",
+                prompt="នេះគឺជាការបំប្លែងសំឡេងជាភាសាខ្មែរ។ សូមសរសេរជាអក្សរខ្មែរឱ្យបានត្រឹមត្រូវតាមអក្ខរាវិរុទ្ធ។",
                 response_format="text",
                 language="km"
             )
 
-        result_text = (
-            "📝 **ការបំប្លែងសំឡេង៖**\n"
-            "🌐 **ភាសា៖** 🇰🇭 ខ្មែរ\n\n"
-            f"{transcription}\n\n"
-            "• By THEARA Rupp"
-        )
+        result_text = f"📝 **ការបំប្លែងសំឡេង៖**\n\n{transcription}\n\n• By THEARA Rupp"
         await msg.edit_text(result_text, parse_mode="Markdown")
 
     except Exception as e:
