@@ -15,7 +15,7 @@ GROQ_API_KEY = os.getenv('GROQ_KEY')
 ADMIN_ID = int(os.getenv('ADMIN_ID', '7859553795'))
 TELEGRAM_ADMIN_URL = os.getenv('ADMIN_URL', 'https://t.me/OG_Raa1')
 KH_TIMEZONE = pytz.timezone('Asia/Phnom_Penh')
-DB_PATH = os.getenv('DB_PATH', 'bot_database.db')
+DB_PATH = "bot_database.db"
 
 # Initialize Clients
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -25,13 +25,13 @@ logging.basicConfig(level=logging.INFO)
 
 # --- DATABASE LOGIC ---
 def init_db():
+    # លុបការប្រើ os.makedirs ប្រសិនបើវាបង្កបញ្ហា
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS users 
                      (user_id INTEGER PRIMARY KEY, lang_code TEXT DEFAULT 'km')''')
     conn.commit()
     conn.close()
-
 init_db()
 
 # --- HELPERS ---
