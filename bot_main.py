@@ -2,7 +2,6 @@ import os
 import logging
 import asyncio
 import speech_recognition as sr
-
 from datetime import timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -26,15 +25,6 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 recognizer = sr.Recognizer()
 logging.basicConfig(level=logging.INFO)
 
-# វចនានុក្រមរក្សាទុកភាសាដែល User ជ្រើសរើស ( Default: ខ្មែរ)
-user_languages = {}
-
-def read_srt(file):
-    with open(file, "r", encoding="utf-8") as f:
-        return f.read()
-
-srt_text = read_srt("subtitle.srt")
-print(srt_text)
 # --- KEYBOARDS ---
 def get_main_menu():
     return ReplyKeyboardMarkup(
