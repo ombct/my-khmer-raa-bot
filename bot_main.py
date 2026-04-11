@@ -27,7 +27,30 @@ logging.basicConfig(level=logging.INFO)
 # វចនានុក្រមរក្សាទុកភាសាដែល User ជ្រើសរើស ( Default: ខ្មែរ)
 user_languages = {}
 
+@dp.message(Command("start"))
+async def start(message: types.Message):
+    await message.answer("🎬 Send me audio/video file")
+    
+@dp.message(F.document | F.audio | F.video)
+async def handler(message: types.Message):
+
+    file = await bot.get_file(message.document.file_id)
+    path = "input.mp3"
+
+    await bot.download_file(file.file_path, path)
+
+    # 🎤 Speech to text (Whisper / Groq)
+    text = "Hello demo text"
+
+    # 🧾 CREATE SRT HERE (👉 បន្ថែមកន្លែងនេះ)
+    srt_path = "output.srt"
+    with open(srt_path, "w", encoding="utf-8") as f:
+        f.write("1\n00:00:01 --> 00:00:05\n" + text)
+
+    # 📤 send file back
+    await message.answer_document(BufferedInputFile.from_file(srt_path))    
 # --- បន្ថែម៖ Handler សម្រាប់ព័ត៌មាន Bot ---
+
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
     info_text = (
@@ -75,6 +98,8 @@ def format_timestamp(seconds: float):
     secs = total_seconds % 60
     millis = int(td.microseconds / 1000)
     return f"{hours:02}:{minutes:02}:{secs:02},{millis:03}"
+    f.write(text = "Hello demo text")
+    AudioSegment.from_file("input.mp3")
 
 # --- HANDLERS ---
 @dp.message(Command("start"))
