@@ -2,6 +2,28 @@ import os
 import logging
 import asyncio
 import speech_recognition as sr
+import re
+
+def parse_srt(file):
+    with open(file, "r", encoding="utf-8") as f:
+        data = f.read()
+
+    pattern = r"(\d+)\n(.*?) --> (.*?)\n(.*?)\n"
+    matches = re.findall(pattern, data, re.DOTALL)
+
+    subtitles = []
+    for m in matches:
+        subtitles.append({
+            "index": m[0],
+            "start": m[1],
+            "end": m[2],
+            "text": m[3]
+        })
+
+    return subtitles
+
+subs = parse_srt("subtitle.srt")
+print(subs)
 from datetime import timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -12,6 +34,7 @@ from aiogram.types import (
 )
 from groq import Groq
 from pydub import AudioSegment
+
 
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
@@ -27,6 +50,12 @@ logging.basicConfig(level=logging.INFO)
 # វចនានុក្រមរក្សាទុកភាសាដែល User ជ្រើសរើស ( Default: ខ្មែរ)
 user_languages = {}
 
+def read_srt(file):
+    with open(file, "r", encoding="utf-8") as f:
+        return f.read()
+
+srt_text = read_srt("subtitle.srt")
+print(srt_text)
 # --- KEYBOARDS ---
 def get_main_menu():
     return ReplyKeyboardMarkup(
