@@ -2,28 +2,7 @@ import os
 import logging
 import asyncio
 import speech_recognition as sr
-import re
 
-def parse_srt(file):
-    with open(file, "r", encoding="utf-8") as f:
-        data = f.read()
-
-    pattern = r"(\d+)\n(.*?) --> (.*?)\n(.*?)\n"
-    matches = re.findall(pattern, data, re.DOTALL)
-
-    subtitles = []
-    for m in matches:
-        subtitles.append({
-            "index": m[0],
-            "start": m[1],
-            "end": m[2],
-            "text": m[3]
-        })
-
-    return subtitles
-
-subs = parse_srt("subtitle.srt")
-print(subs)
 from datetime import timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
