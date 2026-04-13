@@ -25,7 +25,7 @@ from aiogram.client.default import DefaultBotProperties # បន្ថែមន�
 bot = Bot(
     token=API_TOKEN, 
     default=DefaultBotProperties(parse_mode="HTML")
-)ះ
+)
 
 # កែសម្រួលត្រង់ចំណុចបង្កើត Bot (ជួរទី 23)
 bot = Bot(
