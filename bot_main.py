@@ -67,6 +67,14 @@ def get_voice_keyboard():
     ])
     return keyboard
 
+def get_file_type_keyboard():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📄 PDF", callback_data="export_pdf"), InlineKeyboardButton(text="📝 DOCX", callback_data="export_docx")],
+        [InlineKeyboardButton(text="📋 TXT", callback_data="export_txt"), InlineKeyboardButton(text="📊 XLSX", callback_data="export_xlsx")],
+        [InlineKeyboardButton(text="🎬 SRT", callback_data="export_srt"), InlineKeyboardButton(text="📺 VTT", callback_data="export_vtt")],
+        [InlineKeyboardButton(text="🎞 ASS", callback_data="export_ass"), InlineKeyboardButton(text="📦 JSON", callback_data="export_json")]
+    ])
+    return keyboard
 def format_timestamp(seconds: float):
     td = timedelta(seconds=seconds)
     total_seconds = int(td.total_seconds())
@@ -109,6 +117,22 @@ async def process_voice_selection(callback: types.CallbackQuery):
         await callback.message.edit_text(f"<b>✅ បានកំណត់យកសំឡេង AI ភេទ:</b> <code>{name}</code>")
     await callback.answer()
 
+# កែសម្រួលក្នុងផ្នែក handle_audio (ជួរប្រហែល ១៥០-១៦០ ខាងក្រោម Groq Logic)
+srt_content = ""
+for i, segment in enumerate(response.segments, start=1):
+    srt_content += f"{i}\n{format_timestamp(segment['start'])} --> {format_timestamp(segment['end'])}\n{segment['text'].strip()}\n\n"
+
+# ត្រង់នេះសំខាន់បំផុតសម្រាប់អក្សរខ្មែរ
+srt_file = BufferedInputFile(
+    srt_content.encode('utf-8'), # បន្ថែម .encode('utf-8') នៅទីនេះ
+    filename=f"sub_{lang}.srt"
+)
+
+# បង្ហាញប៊ូតុងឱ្យ User រើសប្រភេទ File ផ្សេងៗ (ដូចរូបភាពទី ១)
+await message.answer(
+    "<b>✅ បំប្លែងរួចរាល់! សូមជ្រើសរើសប្រភេទ File:</b>", 
+    reply_markup=get_file_type_keyboard()
+)
 @dp.message(F.text == "🌐 ប្តូរភាសា (Language)")
 async def change_lang(message: types.Message):
     await message.answer("<b>🌐 សូមជ្រើសរើសភាសាដែលអ្នកចង់ប្រើ:</b>", reply_markup=get_lang_keyboard())
@@ -144,7 +168,12 @@ async def handle_audio(message: types.Message):
         with sr.AudioFile(wav_path) as source:
             audio_data = recognizer.record(source)
             google_text = recognizer.recognize_google(audio_data, language=google_lang)
-
+​​@dp.callback_query(F.data.startswith("export_"))
+async def process_export(callback: types.CallbackQuery):
+    file_type = callback.data.split("_")[1]
+    # Logic សម្រាប់បំប្លែងទៅជាប្រភេទ File នីមួយៗនៅទីនេះ
+    await callback.answer(f"កំពុងរៀបចំឯកសារ {file_type.upper()}...")
+    
         # បង្កើតសំឡេង AI លុះត្រាតែបានរើសភេទសំឡេងរួច
         if voice_choice:
             tts = gTTS(text=google_text, lang=lang)
