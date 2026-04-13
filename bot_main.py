@@ -19,8 +19,13 @@ API_TOKEN = os.getenv('BOT_TOKEN')
 GROQ_API_KEY = os.getenv('GROQ_KEY')
 ADMIN_URL = "https://t.me/OG_Raa1"
 
-# កំណត់ parse_mode="HTML" ដើម្បីឱ្យស្អាត
-from aiogram.client.default import DefaultBotProperties # បន្ថែម Import មួយនេះ
+# កែជួរទី ២៣ ក្នុង bot_main.py
+from aiogram.client.default import DefaultBotProperties # បន្ថែមនៅជួរខាងលើ
+
+bot = Bot(
+    token=API_TOKEN, 
+    default=DefaultBotProperties(parse_mode="HTML")
+)ះ
 
 # កែសម្រួលត្រង់ចំណុចបង្កើត Bot (ជួរទី 23)
 bot = Bot(
@@ -177,7 +182,7 @@ async def handle_audio(message: types.Message):
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
     info = (
-        "<b>🤖 SomlengSrtBot Pro v10.0</b>\n"
+        "<b>🤖 RaaBot Pro v10.0</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
         "• <b>Developer:</b> THEARA Rupp\n"
         "• <b>Status:</b> Active (Stable)\n"
