@@ -2,3 +2,4 @@ aiogram
 SpeechRecognition
 groq
 pydub
+gtts
