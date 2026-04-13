@@ -20,7 +20,13 @@ GROQ_API_KEY = os.getenv('GROQ_KEY')
 ADMIN_URL = "https://t.me/OG_Raa1"
 
 # កំណត់ parse_mode="HTML" ដើម្បីឱ្យស្អាត
-bot = Bot(token=API_TOKEN, parse_mode="HTML")
+from aiogram.client.default import DefaultBotProperties # បន្ថែម Import មួយនេះ
+
+# កែសម្រួលត្រង់ចំណុចបង្កើត Bot (ជួរទី 23)
+bot = Bot(
+    token=API_TOKEN, 
+    default=DefaultBotProperties(parse_mode="HTML")
+)
 dp = Dispatcher()
 groq_client = Groq(api_key=GROQ_API_KEY)
 recognizer = sr.Recognizer()
