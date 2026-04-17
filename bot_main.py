@@ -22,7 +22,7 @@ API_TOKEN = os.getenv('BOT_TOKEN')
 GROQ_API_KEY = os.getenv('GROQ_KEY')
 ADMIN_URL = "https://t.me/OG_Raa1"
 
-# API Key របស់ប្អូនដែលបានផ្ដល់ឱ្យ
+# API Key របស់ប្អូន
 REMOVE_BG_API_KEY = "c7MsDwJLr4Gv3eGjNBPRyFo4" 
 
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
@@ -43,6 +43,12 @@ def get_main_menu():
         ],
         resize_keyboard=True
     )
+
+def get_remove_bg_confirm(file_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🖼️ Remove Background ឥឡូវនេះ", callback_data=f"confirm_rbg_{file_id}")],
+        [InlineKeyboardButton(text="❌ បោះបង់", callback_data="cancel_rbg")]
+    ])
 
 def get_lang_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -78,43 +84,60 @@ def format_timestamp(seconds: float):
 
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
+    # Highlight ពណ៌ចម្រុះដោយប្រើ HTML tags
     welcome_text = (
-        "<b>🎙 សូមស្វាគមន៍មកកាន់ RaaBot Pro!</b>\n"
+        "<b>🎙 <u>ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</u></b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "✅ បំប្លែងសំឡេងជាអត្ថបទ & SRT\n"
-        "✅ បង្កើតសំឡេង AI (ប្រុស/ស្រី)\n"
-        "✅ <b>Remove Background លើរូបភាព (⚡លឿនបំផុត)</b>\n"
+        "🌈 <b>មុខងារពិសេសរបស់ប្អូន:</b>\n"
+        "🟢 <code>បំប្លែងសំឡេងជាអត្ថបទ & SRT</code>\n"
+        "🟡 <code>បង្កើតសំឡេង AI (ប្រុស/ស្រី)</code>\n"
+        "🔵 <code>Remove Background ច្បាស់កម្រិត 8K</code>\n"
+        "🟣 <code>បំប្លែងឯកសារ PDF/DOCX/SRT</code>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "⚠️ <i>ផ្ញើ File សំឡេង ឬ រូបភាពមកកាន់ Bot ឥឡូវនេះ!</i>"
+        "✨ <i><b><a href='https://t.me/OG_Raa1'>ទាក់ទងមក Admin បើមានបញ្ហា</a></b></i>"
     )
     await message.answer(welcome_text, reply_markup=get_main_menu())
 
-# --- មុខងារ REMOVE BACKGROUND (កាត់យ៉ាងលឿន) ---
+# --- មុខងារ REMOVE BACKGROUND (ទាល់តែចុចទើបកាត់ + 8K) ---
 @dp.message(F.photo)
-async def handle_image(message: types.Message):
-    msg = await message.answer("⚡ <b>កំពុងកាត់ Background យ៉ាងលឿន... សូមរង់ចាំ</b>")
+async def ask_remove_bg(message: types.Message):
+    photo_id = message.photo[-1].file_id
+    await message.reply(
+        "<b>📸 ប្អូនបានផ្ញើរូបភាពមក! តើប្អូនចង់កាត់ Background មែនទេ?</b>",
+        reply_markup=get_remove_bg_confirm(photo_id)
+    )
+
+@dp.callback_query(F.data.startswith("confirm_rbg_"))
+async def process_remove_bg(callback: types.CallbackQuery):
+    file_id = callback.data.split("_")[2]
+    await callback.message.edit_text("⚡ <b>កំពុងកាត់ Background កម្រិតច្បាស់ 8K... សូមរង់ចាំ</b>")
+    
     try:
-        photo = message.photo[-1]
-        file_info = await bot.get_file(photo.file_id)
+        file_info = await bot.get_file(file_id)
         file_url = f"https://api.telegram.org/file/bot{API_TOKEN}/{file_info.file_path}"
         
+        # កំណត់ size='full' ដើម្បីបានកម្រិតច្បាស់បំផុត (8K/HD)
         response = requests.post(
             'https://api.remove.bg/v1.0/removebg',
-            data={'image_url': file_url, 'size': 'auto'},
+            data={'image_url': file_url, 'size': 'full'},
             headers={'X-Api-Key': REMOVE_BG_API_KEY},
             stream=True
         )
         
         if response.status_code == requests.codes.ok:
-            await message.answer_document(
-                BufferedInputFile(response.content, filename="no_bg.png"),
-                caption="<b>✅ កាត់រួចរាល់ (Lightning Fast)!</b>"
+            await callback.message.answer_document(
+                BufferedInputFile(response.content, filename="RAA_PRO_8K_NO_BG.png"),
+                caption="<b>✅ កាត់រួចរាល់ក្នុងកម្រិតច្បាស់ 8K!</b>"
             )
+            await callback.message.delete()
         else:
-            await message.answer(f"❌ កំហុស API: {response.text}")
-        await msg.delete()
+            await callback.message.edit_text(f"❌ កំហុស API: {response.text}")
     except Exception as e:
-        await message.answer(f"❌ កំហុសបច្ចេកទេស: {str(e)}")
+        await callback.message.edit_text(f"❌ កំហុសបច្ចេកទេស: {str(e)}")
+
+@dp.callback_query(F.data == "cancel_rbg")
+async def cancel_remove_bg(callback: types.CallbackQuery):
+    await callback.message.edit_text("❌ បានបោះបង់ការកាត់ Background។")
 
 @dp.message(F.text == "🎙️ ជ្រើសរើសសំឡេង AI")
 async def choose_voice(message: types.Message):
