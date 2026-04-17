@@ -64,9 +64,10 @@ def get_file_type_keyboard():
 
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
+    # រក្សាអក្សរស្វាគមន៍ឱ្យដូចដើម
     await message.answer(
         "<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>\n\n"
-        "សួស្តីអ្នកទាំងអស់គ្នា! នេះគឺជា Bot ស្វ័យប្រវត្តិសម្រាប់បំប្លែងសំឡេង និងកាត់ Background ល្បឿនលឿន។\n"
+        "សួស្តីអ្នកទាំងអស់គ្នា! នេះគឺជា Bot ស្វ័យប្រវត្តិសម្រាប់បំប្លែងសំឡេង និងកាត់ Background។\n"
         "សូមជ្រើសរើសមុខងារខាងក្រោម៖", 
         reply_markup=get_main_menu()
     )
