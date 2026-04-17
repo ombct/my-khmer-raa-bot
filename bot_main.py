@@ -13,7 +13,12 @@ from aiogram.types import (
 from aiogram.client.default import DefaultBotProperties
 from pydub import AudioSegment
 from gtts import gTTS
-from rembg import remove
+
+# --- ការកំណត់សម្រាប់ការកាត់ឱ្យលឿន ---
+from rembg import remove, new_session
+
+# បង្កើត Session ទុកជាមុនដើម្បីកុំឱ្យវា Load យូរពេល User ផ្ញើរូបមក
+fast_session = new_session("u2net_lite") # ប្រើ Model ស្រាល តែលឿនខ្លាំង
 
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
@@ -59,31 +64,37 @@ def get_file_type_keyboard():
 
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
-    # រក្សាអក្សរស្វាគមន៍ឱ្យដូចដើម
     await message.answer(
         "<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>\n\n"
-        "សួស្តីអ្នកទាំងអស់គ្នា! នេះគឺជា Bot ស្វ័យប្រវត្តិសម្រាប់បំប្លែងសំឡេង និងកាត់ Background។\n"
+        "សួស្តីអ្នកទាំងអស់គ្នា! នេះគឺជា Bot ស្វ័យប្រវត្តិសម្រាប់បំប្លែងសំឡេង និងកាត់ Background ល្បឿនលឿន។\n"
         "សូមជ្រើសរើសមុខងារខាងក្រោម៖", 
         reply_markup=get_main_menu()
     )
 
+# --- មុខងារកាត់រូបភាពល្បឿនលឿន (Fast Background Removal) ---
 @dp.message(F.photo)
 async def auto_remove_bg(message: types.Message):
     photo_id = message.photo[-1].file_id
-    msg = await message.reply("⚡ <b>កំពុងកាត់ Background ដោយស្វ័យប្រវត្តិ...</b>")
+    msg = await message.reply("⚡ <b>កំពុងកាត់ Background យ៉ាងលឿនបំផុត...</b>")
+    
     try:
         file_info = await bot.get_file(photo_id)
         photo_bytes = await bot.download_file(file_info.file_path)
         input_data = photo_bytes.read()
-        output_data = remove(input_data)
+
+        # ប្រើ Fast Session ដែលបានបង្កើតទុកជាមុន
+        output_data = remove(input_data, session=fast_session)
+
         await message.answer_document(
             BufferedInputFile(output_data, filename="RAA_NO_BG.png"),
-            caption="<b>✅ កាត់រួចរាល់ដោយជោគជ័យ!</b>"
+            caption="<b>✅ កាត់រួចរាល់យ៉ាងរហ័ស!</b>"
         )
         await msg.delete()
+        
     except Exception as e:
         await msg.edit_text(f"❌ Error: {str(e)}")
 
+# --- មុខងារសំឡេង (រក្សាភាសាទាំង ៤) ---
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
     user_id = message.from_user.id
@@ -154,7 +165,7 @@ async def set_voice(callback: types.CallbackQuery):
 
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
-    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Auto Remove BG (Local Engine)\n• Google Recognition (4 Langs)\n• Dev: THEARA Rupp")
+    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Fast Auto Remove BG\n• Google Recognition (4 Langs)\n• Dev: THEARA Rupp")
 
 @dp.message(F.text == "👤 ទាក់ទង Admin")
 async def cmd_admin(message: types.Message):
