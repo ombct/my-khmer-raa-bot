@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import requests
 import speech_recognition as sr
 from datetime import timedelta
 from aiogram import Bot, Dispatcher, types, F
@@ -14,19 +15,17 @@ from aiogram.client.default import DefaultBotProperties
 from groq import Groq
 from pydub import AudioSegment
 from gtts import gTTS
-from rembg import remove # បន្ថែមសម្រាប់ Remove Background
 from io import BytesIO
-from PIL import Image
 
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
 GROQ_API_KEY = os.getenv('GROQ_KEY')
 ADMIN_URL = "https://t.me/OG_Raa1"
 
-bot = Bot(
-    token=API_TOKEN, 
-    default=DefaultBotProperties(parse_mode="HTML")
-)
+# API Key របស់ប្អូនដែលបានផ្ដល់ឱ្យ
+REMOVE_BG_API_KEY = "c7MsDwJLr4Gv3eGjNBPRyFo4" 
+
+bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 groq_client = Groq(api_key=GROQ_API_KEY)
 recognizer = sr.Recognizer()
@@ -82,41 +81,40 @@ async def send_welcome(message: types.Message):
     welcome_text = (
         "<b>🎙 សូមស្វាគមន៍មកកាន់ RaaBot Pro!</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "✨ <b>លក្ខណៈពិសេស:</b>\n"
         "✅ បំប្លែងសំឡេងជាអត្ថបទ & SRT\n"
         "✅ បង្កើតសំឡេង AI (ប្រុស/ស្រី)\n"
-        "✅ <b>Remove Background លើរូបភាព</b> (គ្រាន់តែផ្ញើរូបភាពមក)\n"
+        "✅ <b>Remove Background លើរូបភាព (⚡លឿនបំផុត)</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "⚠️ <i>ផ្ញើសំឡេងដើម្បីបំប្លែង ឬផ្ញើរូបភាពដើម្បីកាត់ Background</i>"
+        "⚠️ <i>ផ្ញើ File សំឡេង ឬ រូបភាពមកកាន់ Bot ឥឡូវនេះ!</i>"
     )
     await message.answer(welcome_text, reply_markup=get_main_menu())
 
-# --- មុខងារ REMOVE BACKGROUND ---
+# --- មុខងារ REMOVE BACKGROUND (កាត់យ៉ាងលឿន) ---
 @dp.message(F.photo)
 async def handle_image(message: types.Message):
-    msg = await message.answer("⏳ <b>កំពុងកាត់ Background... សូមរង់ចាំ</b>")
+    msg = await message.answer("⚡ <b>កំពុងកាត់ Background យ៉ាងលឿន... សូមរង់ចាំ</b>")
     try:
-        # ទាញយករូបភាព
         photo = message.photo[-1]
-        image_bytes = BytesIO()
-        await bot.download(photo, destination=image_bytes)
+        file_info = await bot.get_file(photo.file_id)
+        file_url = f"https://api.telegram.org/file/bot{API_TOKEN}/{file_info.file_path}"
         
-        # ដំណើរការកាត់ Background
-        input_image = Image.open(image_bytes)
-        output_image = remove(input_image)
-        
-        # រក្សាទុកលទ្ធផលក្នុង Memory
-        output_bytes = BytesIO()
-        output_image.save(output_bytes, format='PNG')
-        output_bytes.seek(0)
-        
-        await message.answer_document(
-            BufferedInputFile(output_bytes.read(), filename="no_bg.png"),
-            caption="<b>✅ កាត់ Background រួចរាល់!</b>"
+        response = requests.post(
+            'https://api.remove.bg/v1.0/removebg',
+            data={'image_url': file_url, 'size': 'auto'},
+            headers={'X-Api-Key': REMOVE_BG_API_KEY},
+            stream=True
         )
+        
+        if response.status_code == requests.codes.ok:
+            await message.answer_document(
+                BufferedInputFile(response.content, filename="no_bg.png"),
+                caption="<b>✅ កាត់រួចរាល់ (Lightning Fast)!</b>"
+            )
+        else:
+            await message.answer(f"❌ កំហុស API: {response.text}")
         await msg.delete()
     except Exception as e:
-        await message.answer(f"❌ កំហុសរូបភាព: {str(e)}")
+        await message.answer(f"❌ កំហុសបច្ចេកទេស: {str(e)}")
 
 @dp.message(F.text == "🎙️ ជ្រើសរើសសំឡេង AI")
 async def choose_voice(message: types.Message):
@@ -177,7 +175,7 @@ async def handle_audio(message: types.Message):
                 prompt="អក្សរខ្មែរមានជើង និងស្រៈត្រឹមត្រូវ។"
             )
 
-        await message.answer(f"<b>📝 អក្សរ ({lang.upper()}):</b>\n<code>{google_text}</code>")
+        await message.answer(f"<b>📝 អត្ថបទបំប្លែងរួច ({lang.upper()}):</b>\n\n<code>{response.text}</code>")
 
         srt_content = ""
         for i, segment in enumerate(response.segments, start=1):
