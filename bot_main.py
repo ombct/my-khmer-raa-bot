@@ -36,7 +36,8 @@ def get_main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🌐 ប្តូរភាសា (Language)"), KeyboardButton(text="🎙️ ជ្រើសរើសសំឡេង AI")],
-            [KeyboardButton(text="ℹ️ ព័ត៌មាន Bot"), KeyboardButton(text="👤 ទាក់ទង Admin")]
+            [KeyboardButton(text="🖼️ កាត់រូបភាព (Background)"), KeyboardButton(text="ℹ️ ព័ត៌មាន Bot")],
+            [KeyboardButton(text="👤 ទាក់ទង Admin")]
         ],
         resize_keyboard=True
     )
@@ -81,7 +82,6 @@ def format_timestamp(seconds: float):
 
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
-    # សារ Start ដែលមាន Highlight ពណ៌ចម្រុះ
     welcome_text = (
         "<b>🎙 <u>ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</u></b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
@@ -95,7 +95,11 @@ async def send_welcome(message: types.Message):
     )
     await message.answer(welcome_text, reply_markup=get_main_menu())
 
-# --- មុខងារ REMOVE BACKGROUND (ទាល់តែចុចប៊ូតុង + 8K) ---
+@dp.message(F.text == "🖼️ កាត់រូបភាព (Background)")
+async def rbg_info(message: types.Message):
+    await message.answer("<b>🖼️ របៀបប្រើប្រាស់:</b>\nសូមផ្ញើរូបភាពដែលប្អូនចង់កាត់មកកាន់ Bot រួចចុចប៊ូតុងបញ្ជាក់ នោះ Bot នឹងកាត់ជូនភ្លាមៗក្នុងកម្រិត 8K!")
+
+# --- មុខងារ REMOVE BACKGROUND (ទាល់តែចុចប៊ូតុងទើបកាត់) ---
 @dp.message(F.photo)
 async def ask_remove_bg(message: types.Message):
     photo_id = message.photo[-1].file_id
@@ -108,15 +112,18 @@ async def ask_remove_bg(message: types.Message):
 async def process_remove_bg(callback: types.CallbackQuery):
     file_id = callback.data.split("_")[2]
     await callback.message.edit_text("⚡ <b>កំពុងកាត់ Background កម្រិតច្បាស់ 8K... សូមរង់ចាំ</b>")
+    
     try:
         file_info = await bot.get_file(file_id)
         file_url = f"https://api.telegram.org/file/bot{API_TOKEN}/{file_info.file_path}"
+        
         response = requests.post(
             'https://api.remove.bg/v1.0/removebg',
             data={'image_url': file_url, 'size': 'full'},
             headers={'X-Api-Key': REMOVE_BG_API_KEY},
             stream=True
         )
+        
         if response.status_code == requests.codes.ok:
             await callback.message.answer_document(
                 BufferedInputFile(response.content, filename="RAA_PRO_8K_NO_BG.png"),
@@ -128,13 +135,13 @@ async def process_remove_bg(callback: types.CallbackQuery):
     except Exception as e:
         await callback.message.edit_text(f"❌ កំហុសបច្ចេកទេស: {str(e)}")
 
-# --- មុខងារបំប្លែងសំឡេងដោយប្រើ Groq AI (ច្បាស់ 100%) ---
+# --- មុខងារបំប្លែងសំឡេងដោយប្រើ Groq AI ---
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
     user_id = message.from_user.id
     lang = user_languages.get(user_id, "km")
     voice_choice = user_voices.get(user_id, None)
-    msg = await message.answer("<b>⏳ កំពុងបំប្លែងដោយ Groq AI (100% Accuracy)...</b>")
+    msg = await message.answer("<b>⏳ កំពុងបំប្លែងដោយ Groq AI (High Accuracy)...</b>")
     
     file_id = message.voice.file_id if message.voice else message.audio.file_id
     file = await bot.get_file(file_id)
@@ -142,14 +149,16 @@ async def handle_audio(message: types.Message):
     await bot.download_file(file.file_path, ogg_path)
 
     try:
-        AudioSegment.from_file(ogg_path).export(wav_path, format="wav")
+        audio = AudioSegment.from_file(ogg_path)
+        audio.set_frame_rate(16000).set_channels(1).export(wav_path, format="wav")
+        
         with open(wav_path, "rb") as audio_file:
             response = groq_client.audio.transcriptions.create(
                 file=(wav_path, audio_file.read()),
                 model="whisper-large-v3",
                 response_format="verbose_json",
-                language=lang,
-                prompt="សូមបំប្លែងជាអក្សរខ្មែរឱ្យបានត្រឹមត្រូវបំផុតតាមអក្ខរាវិរុទ្ធ។"
+                language="km",
+                prompt="អត្ថបទនេះជាភាសាខ្មែរ។ សូមសរសេរឱ្យត្រូវតាមវចនានុក្រមខ្មែរ មានជើងអក្សរ និងស្រៈពេញតួ។"
             )
 
         full_text = response.text
@@ -158,7 +167,7 @@ async def handle_audio(message: types.Message):
             tts.save(tts_path)
             await message.answer_voice(BufferedInputFile.from_file(tts_path), caption="<b>🎙️ សំឡេង AI</b>")
 
-        await message.answer(f"<b>📝 អត្ថបទ (Groq AI):</b>\n\n<code>{full_text}</code>")
+        await message.answer(f"<b>📝 អត្ថបទបំប្លែងរួច (Groq AI):</b>\n\n<code>{full_text}</code>")
 
         srt_content = ""
         for i, segment in enumerate(response.segments, start=1):
