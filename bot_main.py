@@ -12,19 +12,16 @@ from aiogram.types import (
     BufferedInputFile
 )
 from aiogram.client.default import DefaultBotProperties
-from groq import Groq
 from pydub import AudioSegment
 from gtts import gTTS
 
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
-GROQ_API_KEY = os.getenv('GROQ_KEY') # ទុកសម្រាប់ផលិត SRT ឱ្យច្បាស់
 ADMIN_URL = "https://t.me/OG_Raa1"
 REMOVE_BG_API_KEY = "c7MsDwJLr4Gv3eGjNBPRyFo4" 
 
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
-groq_client = Groq(api_key=GROQ_API_KEY)
 recognizer = sr.Recognizer()
 logging.basicConfig(level=logging.INFO)
 
@@ -77,20 +74,20 @@ def format_timestamp(seconds: float):
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
     welcome_text = (
-        "<b>🎙 <u>ស្វាគមន៍មកកាន់ RaaBot Pro (Full Config)</u></b>\n"
+        "<b>🎙 <u>ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</u></b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "✅ <b>Google Engine:</b> បំប្លែងសំឡេងលឿន\n"
-        "✅ <b>Groq AI:</b> ផលិតឯកសារ SRT ច្បាស់ 100%\n"
-        "✅ <b>Remove BG:</b> កាត់រូបភាពកម្រិត 8K (ទាមទារចុចប៊ូតុង)\n"
+        "✅ <b>Audio:</b> បំប្លែងសំឡេងជាអត្ថបទ & SRT (Google)\n"
+        "✅ <b>Image:</b> Remove Background កម្រិតច្បាស់ 8K\n"
+        "✅ <b>Voice:</b> បង្កើតសំឡេង AI (ប្រុស/ស្រី)\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "✨ <i>ទាក់ទង Admin: <a href='https://t.me/OG_Raa1'>OG_Raa1</a></i>"
+        "✨ <i>Dev: <a href='https://t.me/OG_Raa1'>THEARA Rupp</a></i>"
     )
     await message.answer(welcome_text, reply_markup=get_main_menu())
 
-# --- មុខងារ REMOVE BACKGROUND (កែឱ្យដំណើរការវិញ 100%) ---
+# --- មុខងារ REMOVE BACKGROUND ---
 @dp.message(F.text == "🖼️ Remove Background")
-async def menu_rbg_info(message: types.Message):
-    await message.answer("<b>🖼️ មុខងារកាត់ Background:</b>\nសូមផ្ញើរូបភាពមកកាន់ Bot រួចចុចប៊ូតុងបញ្ជាក់ដើម្បីកាត់យកកម្រិត 8K!")
+async def menu_rbg(message: types.Message):
+    await message.answer("<b>🖼️ មុខងារកាត់ Background រូបភាព</b>\n\nសូមផ្ញើរូបភាពដែលប្អូនចង់កាត់មកកាន់ Bot រួចចុចប៊ូតុងបញ្ជាក់ដើម្បីចាប់ផ្ដើម។")
 
 @dp.message(F.photo)
 async def ask_remove_bg(message: types.Message):
@@ -103,7 +100,7 @@ async def ask_remove_bg(message: types.Message):
 @dp.callback_query(F.data.startswith("confirm_rbg_"))
 async def process_remove_bg(callback: types.CallbackQuery):
     file_id = callback.data.split("_")[2]
-    await callback.message.edit_text("⚡ <b>កំពុងកាត់ Background កម្រិតច្បាស់ 8K...</b>")
+    await callback.message.edit_text("⚡ <b>កំពុងកាត់ Background... សូមរង់ចាំ</b>")
     try:
         file_info = await bot.get_file(file_id)
         file_url = f"https://api.telegram.org/file/bot{API_TOKEN}/{file_info.file_path}"
@@ -115,8 +112,8 @@ async def process_remove_bg(callback: types.CallbackQuery):
         )
         if response.status_code == requests.codes.ok:
             await callback.message.answer_document(
-                BufferedInputFile(response.content, filename="RAA_8K_NO_BG.png"),
-                caption="<b>✅ កាត់រូបភាព 8K រួចរាល់!</b>"
+                BufferedInputFile(response.content, filename="RAA_NO_BG.png"),
+                caption="<b>✅ កាត់រួចរាល់ក្នុងកម្រិតច្បាស់!</b>"
             )
             await callback.message.delete()
         else:
@@ -126,9 +123,9 @@ async def process_remove_bg(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data == "cancel_rbg")
 async def cancel_remove_bg(callback: types.CallbackQuery):
-    await callback.message.edit_text("❌ បោះបង់ការកាត់ Background។")
+    await callback.message.edit_text("❌ បានបោះបង់ការកាត់ Background។")
 
-# --- មុខងារសំឡេង (មានទាំង Google និង SRT File) ---
+# --- មុខងារបំប្លែងសំឡេង (ប្រើ Google Recognition សម្រាប់ SRT) ---
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
     user_id = message.from_user.id
@@ -136,7 +133,7 @@ async def handle_audio(message: types.Message):
     voice_choice = user_voices.get(user_id, None)
     google_lang = {"km": "km-KH", "en": "en-US", "ja": "ja-JP", "zh": "zh-CN"}[lang]
     
-    msg = await message.answer("<b>⏳ កំពុងបំប្លែងសំឡេង និងបង្កើត SRT...</b>")
+    msg = await message.answer("<b>⏳ កំពុងបំប្លែងដោយ Google Recognition...</b>")
     
     file_id = message.voice.file_id if message.voice else message.audio.file_id
     file = await bot.get_file(file_id)
@@ -146,41 +143,27 @@ async def handle_audio(message: types.Message):
     try:
         AudioSegment.from_file(ogg_path).export(wav_path, format="wav")
         
-        # 1. Google Transcription (សម្រាប់អានលឿន)
         with sr.AudioFile(wav_path) as source:
             audio_data = recognizer.record(source)
-            google_text = recognizer.recognize_google(audio_data, language=google_lang)
+            # បំប្លែងជាអត្ថបទដោយប្រើ Google
+            text_result = recognizer.recognize_google(audio_data, language=google_lang)
 
-        # 2. បង្កើតសំឡេង AI
         if voice_choice:
-            tts = gTTS(text=google_text, lang=lang)
+            tts = gTTS(text=text_result, lang=lang)
             tts.save(tts_path)
             await message.answer_voice(BufferedInputFile.from_file(tts_path), caption="<b>🎙️ សំឡេង AI</b>")
 
-        await message.answer(f"<b>📝 អត្ថបទ (Google):</b>\n\n<code>{google_text}</code>")
+        await message.answer(f"<b>📝 អត្ថបទ (Google):</b>\n\n<code>{text_result}</code>")
 
-        # 3. Groq Transcription (សម្រាប់ផលិត SRT ឱ្យច្បាស់ជើងអក្សរ)
-        with open(wav_path, "rb") as audio_file:
-            response = groq_client.audio.transcriptions.create(
-                file=(wav_path, audio_file.read()),
-                model="whisper-large-v3",
-                response_format="verbose_json",
-                language=lang,
-                prompt="សូមសរសេរជាអក្សរខ្មែរឱ្យត្រូវតាមអក្ខរាវិរុទ្ធ និងមានជើងច្បាស់លាស់។"
-            )
-
-        srt_content = ""
-        for i, segment in enumerate(response.segments, start=1):
-            srt_content += f"{i}\n{format_timestamp(segment['start'])} --> {format_timestamp(segment['end'])}\n{segment['text'].strip()}\n\n"
-
-        await message.answer_document(
-            BufferedInputFile(srt_content.encode('utf-8'), filename=f"sub_{lang}.srt"),
-            caption=f"<b>🎬 SRT ({lang.upper()}) ផលិតដោយ Groq AI រួចរាល់!</b>"
-        )
+        # បង្កើត SRT File (ប្រើអត្ថបទពី Google)
+        srt_content = f"1\n00:00:00,000 --> 00:00:10,000\n{text_result}"
+        srt_file = BufferedInputFile(srt_content.encode('utf-8'), filename=f"sub_{lang}.srt")
+        
+        await message.answer_document(srt_file, caption=f"<b>🎬 SRT ({lang.upper()}) រួចរាល់!</b>")
         await msg.delete()
 
     except Exception as e:
-        await message.answer(f"<b>❌ កំហុស:</b> <code>{str(e)}</code>")
+        await message.answer(f"<b>❌ Error:</b> <code>{str(e)}</code>")
     finally:
         for p in [ogg_path, wav_path, tts_path]:
             if os.path.exists(p): os.remove(p)
@@ -195,7 +178,7 @@ async def process_lang_selection(callback: types.CallbackQuery):
     lang_code = callback.data.split("_")[1]
     user_languages[callback.from_user.id] = lang_code
     names = {"km": "Khmer 🇰🇭", "en": "English 🇺🇸", "ja": "Japanese 🇯🇵", "zh": "Chinese 🇨🇳"}
-    await callback.message.edit_text(f"<b>✅ ភាសា:</b> <code>{names[lang_code]}</code>")
+    await callback.message.edit_text(f"<b>✅ ភាសាដែលបានរើស:</b> <code>{names[lang_code]}</code>")
     await callback.answer()
 
 @dp.message(F.text == "🎙️ ជ្រើសរើសសំឡេង AI")
@@ -212,11 +195,11 @@ async def process_voice_selection(callback: types.CallbackQuery):
 
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
-    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Engine: Google & Groq\n• Dev: THEARA Rupp")
+    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Developer: THEARA Rupp\n• Engine: Google Recognition")
 
 @dp.message(F.text == "👤 ទាក់ទង Admin")
 async def cmd_admin(message: types.Message):
-    await message.answer("ទាក់ទង Admin: <a href='https://t.me/OG_Raa1'>OG_Raa1</a>")
+    await message.answer(f"<b>ទាក់ទង Admin:</b> {ADMIN_URL}")
 
 async def main():
     await dp.start_polling(bot)
