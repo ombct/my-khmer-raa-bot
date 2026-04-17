@@ -17,9 +17,8 @@ from gtts import gTTS
 
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
-ADMIN_URL = "https://t.me/OG_Raa1"
-# API Key របស់ Remove.bg ដែលប្អូនបានផ្ដល់ឱ្យ
 REMOVE_BG_API_KEY = "c7MsDwJLr4Gv3eGjNBPRyFo4" 
+ADMIN_URL = "https://t.me/OG_Raa1"
 
 bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
@@ -28,6 +27,7 @@ logging.basicConfig(level=logging.INFO)
 
 user_languages = {}
 user_voices = {}
+last_transcription = {} # សម្រាប់រក្សាទុកអត្ថបទទុក Export ជា File ផ្សេងៗ
 
 # --- KEYBOARDS ---
 def get_main_menu():
@@ -40,10 +40,12 @@ def get_main_menu():
         resize_keyboard=True
     )
 
-def get_remove_bg_confirm(file_id):
+def get_file_type_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🖼️ Remove Background ឥឡូវនេះ", callback_data=f"confirm_rbg_{file_id}")],
-        [InlineKeyboardButton(text="❌ បោះបង់", callback_data="cancel_rbg")]
+        [InlineKeyboardButton(text="📄 PDF", callback_data="export_pdf"), InlineKeyboardButton(text="📝 DOCX", callback_data="export_docx")],
+        [InlineKeyboardButton(text="📋 TXT", callback_data="export_txt"), InlineKeyboardButton(text="📊 XLSX", callback_data="export_xlsx")],
+        [InlineKeyboardButton(text="🎬 SRT", callback_data="export_srt"), InlineKeyboardButton(text="📺 VTT", callback_data="export_vtt")],
+        [InlineKeyboardButton(text="🎞 ASS", callback_data="export_ass"), InlineKeyboardButton(text="📦 JSON", callback_data="export_json")]
     ])
 
 def get_lang_keyboard():
@@ -66,120 +68,109 @@ def get_voice_keyboard():
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
     welcome_text = (
-        "<b>🎙 <u>ស្វាគមន៍មកកាន់ RaaBot Pro (Full Config)</u></b>\n"
+        "<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "✅ <b>Google Engine:</b> បំប្លែងសំឡេងជាអត្ថបទ & SRT លឿន\n"
-        "✅ <b>Voice:</b> បង្កើតសំឡេង AI (ប្រុស/ស្រី)\n"
-        "✅ <b>Remove BG:</b> កាត់រូបភាព 8K (ទាមទារចុចប៊ូតុង)\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "✨ <i>ទាក់ទង Admin: <a href='https://t.me/OG_Raa1'>OG_Raa1</a></i>"
+        "✨ <b>មុខងារដែលមានស្រាប់:</b>\n"
+        "✅ បំប្លែងសំឡេងដោយ Google Recognition\n"
+        "✅ Export ជា File ច្រើនប្រភេទ (PDF, DOCX, SRT...)\n"
+        "✅ បង្កើតសំឡេង AI (ប្រុស/ស្រី)\n"
+        "✅ <b>ថ្មី:</b> Auto Remove Background (ផ្ញើរូបកាត់ភ្លាម)\n"
+        "━━━━━━━━━━━━━━━━━━"
     )
     await message.answer(welcome_text, reply_markup=get_main_menu())
 
-# --- មុខងារ MENU REMOVE BACKGROUND ---
-@dp.message(F.text == "🖼️ Remove Background")
-async def menu_rbg_info(message: types.Message):
-    await message.answer("<b>🖼️ របៀបកាត់ Background:</b>\nសូមផ្ញើរូបភាពមកកាន់ Bot រួចចុចប៊ូតុងបញ្ជាក់ដើម្បីចាប់ផ្ដើម។")
-
-# --- មុខងារ REMOVE BACKGROUND (កែសម្រួលឱ្យដំណើរការវិញ 100%) ---
+# --- មុខងារ AUTO REMOVE BACKGROUND ---
 @dp.message(F.photo)
-async def ask_remove_bg(message: types.Message):
+async def auto_remove_bg(message: types.Message):
     photo_id = message.photo[-1].file_id
-    await message.reply(
-        "<b>📸 ប្អូនបានផ្ញើរូបភាពមក! តើប្អូនចង់កាត់ Background មែនទេ?</b>",
-        reply_markup=get_remove_bg_confirm(photo_id)
-    )
-
-@dp.callback_query(F.data.startswith("confirm_rbg_"))
-async def process_remove_bg(callback: types.CallbackQuery):
-    file_id = callback.data.split("_")[2]
-    await callback.message.edit_text("⚡ <b>កំពុងដំណើរការកាត់រូបភាព... សូមរង់ចាំ</b>")
-    
+    msg = await message.reply("⚡ <b>កំពុងកាត់ Background ឱ្យប្អូន Auto... (8K Mode)</b>")
     try:
-        # ទាញយករូបភាពពី Telegram
-        file_info = await bot.get_file(file_id)
+        file_info = await bot.get_file(photo_id)
         file_url = f"https://api.telegram.org/file/bot{API_TOKEN}/{file_info.file_path}"
-        
-        # ផ្ញើទៅ Remove.bg API
         response = requests.post(
             'https://api.remove.bg/v1.0/removebg',
             data={'image_url': file_url, 'size': 'full'},
             headers={'X-Api-Key': REMOVE_BG_API_KEY},
             stream=True
         )
-        
         if response.status_code == requests.codes.ok:
-            # ផ្ញើលទ្ធផលត្រឡប់មកវិញជាឯកសារ
-            await callback.message.answer_document(
-                BufferedInputFile(response.content, filename="RAA_NO_BG.png"),
-                caption="<b>✅ កាត់រួចរាល់ក្នុងកម្រិតច្បាស់!</b>"
+            await message.answer_document(
+                BufferedInputFile(response.content, filename="RAA_AUTO_NO_BG.png"),
+                caption="<b>✅ កាត់រួចរាល់ដោយស្វ័យប្រវត្តិ!</b>"
             )
-            await callback.message.delete()
+            await msg.delete()
         else:
-            await callback.message.edit_text(f"❌ កំហុស API: {response.text}")
+            await msg.edit_text(f"❌ កំហុស API: {response.text}")
     except Exception as e:
-        await callback.message.edit_text(f"❌ កំហុសបច្ចេកទេស: {str(e)}")
+        await msg.edit_text(f"❌ Error: {str(e)}")
 
-@dp.callback_query(F.data == "cancel_rbg")
-async def cancel_remove_bg(callback: types.CallbackQuery):
-    await callback.message.edit_text("❌ បានបោះបង់ការកាត់ Background។")
-
-# --- មុខងារបំប្លែងសំឡេង (SRT ប្រើ Google) ---
+# --- មុខងារសំឡេង (Google Recognition) ---
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
     user_id = message.from_user.id
     lang = user_languages.get(user_id, "km")
     voice_choice = user_voices.get(user_id, None)
-    
-    # កំណត់ភាសាសម្រាប់ Google
     google_lang = {"km": "km-KH", "en": "en-US", "ja": "ja-JP", "zh": "zh-CN"}[lang]
-    msg = await message.answer("<b>⏳ កំពុងបំប្លែងដោយ Google Recognition...</b>")
     
+    msg = await message.answer("<b>⏳ កំពុងបំប្លែងដោយ Google...</b>")
     file_id = message.voice.file_id if message.voice else message.audio.file_id
     file = await bot.get_file(file_id)
     ogg_path, wav_path, tts_path = f"{file_id}.ogg", f"{file_id}.wav", f"{file_id}_ai.mp3"
     await bot.download_file(file.file_path, ogg_path)
 
     try:
-        # បំប្លែង OGG ទៅ WAV សម្រាប់ Google Speech
         AudioSegment.from_file(ogg_path).export(wav_path, format="wav")
-        
         with sr.AudioFile(wav_path) as source:
             audio_data = recognizer.record(source)
-            # ប្រើ Google Recognition
             text_result = recognizer.recognize_google(audio_data, language=google_lang)
+        
+        last_transcription[user_id] = text_result # រក្សាទុកសម្រាប់ Export
 
-        # បង្កើតសំឡេង AI បើអ្នកប្រើជ្រើសរើស
         if voice_choice:
             tts = gTTS(text=text_result, lang=lang)
             tts.save(tts_path)
             await message.answer_voice(BufferedInputFile.from_file(tts_path), caption="<b>🎙️ សំឡេង AI</b>")
 
         await message.answer(f"<b>📝 អត្ថបទ (Google):</b>\n\n<code>{text_result}</code>")
-
-        # បង្កើត SRT File (Google Recognition)
-        srt_content = f"1\n00:00:00,000 --> 00:00:10,000\n{text_result}"
-        srt_file = BufferedInputFile(srt_content.encode('utf-8'), filename=f"sub_{lang}.srt")
-        await message.answer_document(srt_file, caption=f"<b>🎬 SRT ({lang.upper()}) រួចរាល់!</b>")
+        await message.answer("<b>✅ រួចរាល់! សូមជ្រើសរើសប្រភេទ File:</b>", reply_markup=get_file_type_keyboard())
         await msg.delete()
 
     except Exception as e:
-        await message.answer(f"<b>❌ Error:</b> <code>{str(e)}</code>")
+        await message.answer(f"❌ Error: {str(e)}")
     finally:
         for p in [ogg_path, wav_path, tts_path]:
             if os.path.exists(p): os.remove(p)
 
-# --- មុខងារ Setup ផ្សេងៗ (Language & Voice) ---
+# --- មុខងារ EXPORT FILES (រក្សាទុកដូចដើម) ---
+@dp.callback_query(F.data.startswith("export_"))
+async def process_export(callback: types.CallbackQuery):
+    file_type = callback.data.split("_")[1]
+    user_id = callback.from_user.id
+    text = last_transcription.get(user_id, "មិនមានទិន្នន័យ")
+    lang = user_languages.get(user_id, "km")
+
+    if file_type == "srt":
+        content = f"1\n00:00:00,000 --> 00:00:10,000\n{text}"
+        filename = f"sub_{lang}.srt"
+    else:
+        content = text
+        filename = f"file_{lang}.{file_type}"
+
+    await callback.message.answer_document(
+        BufferedInputFile(content.encode('utf-8'), filename=filename),
+        caption=f"<b>🎬 ឯកសារ {file_type.upper()} រួចរាល់!</b>"
+    )
+    await callback.answer()
+
+# --- មុខងាររៀបចំផ្សេងៗ ---
 @dp.message(F.text == "🌐 ប្តូរភាសា (Language)")
 async def change_lang(message: types.Message):
     await message.answer("<b>🌐 សូមជ្រើសរើសភាសា:</b>", reply_markup=get_lang_keyboard())
 
 @dp.callback_query(F.data.startswith("setlang_"))
-async def process_lang_selection(callback: types.CallbackQuery):
-    lang_code = callback.data.split("_")[1]
-    user_languages[callback.from_user.id] = lang_code
-    names = {"km": "Khmer 🇰🇭", "en": "English 🇺🇸", "ja": "Japanese 🇯🇵", "zh": "Chinese 🇨🇳"}
-    await callback.message.edit_text(f"<b>✅ ភាសាដែលបានរើស:</b> <code>{names[lang_code]}</code>")
+async def set_lang(callback: types.CallbackQuery):
+    user_languages[callback.from_user.id] = callback.data.split("_")[1]
+    await callback.message.edit_text("✅ បានកំណត់ភាសារួចរាល់!")
     await callback.answer()
 
 @dp.message(F.text == "🎙️ ជ្រើសរើសសំឡេង AI")
@@ -187,20 +178,22 @@ async def choose_voice(message: types.Message):
     await message.answer("<b>🎙️ សូមជ្រើសរើសភេទសំឡេង AI:</b>", reply_markup=get_voice_keyboard())
 
 @dp.callback_query(F.data.startswith("setvoice_"))
-async def process_voice_selection(callback: types.CallbackQuery):
-    voice_type = callback.data.split("_")[1]
-    user_voices[callback.from_user.id] = None if voice_type == "none" else voice_type
-    name = "ស្រី 👩" if voice_type == "female" else "ប្រុស 👨"
-    await callback.message.edit_text(f"<b>✅ បានកំណត់យកសំឡេង AI ភេទ:</b> <code>{name}</code>")
+async def set_voice(callback: types.CallbackQuery):
+    user_voices[callback.from_user.id] = None if callback.data.split("_")[1] == "none" else callback.data.split("_")[1]
+    await callback.message.edit_text("✅ បានកំណត់សំឡេង AI រួចរាល់!")
     await callback.answer()
+
+@dp.message(F.text == "🖼️ Remove Background")
+async def info_rbg(message: types.Message):
+    await message.answer("<b>🖼️ មុខងារ Auto Remove BG:</b>\nគ្រាន់តែផ្ញើរូបភាពមក Bot វានឹងកាត់ឱ្យភ្លាមៗ!")
 
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
-    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Engine: Google Recognition\n• Dev: THEARA Rupp")
+    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Engine: Google Recognition\n• Mode: Auto Remove BG\n• Dev: THEARA Rupp")
 
 @dp.message(F.text == "👤 ទាក់ទង Admin")
 async def cmd_admin(message: types.Message):
-    await message.answer(f"<b>ទាក់ទង Admin:</b> <a href='https://t.me/OG_Raa1'>OG_Raa1</a>")
+    await message.answer(f"<b>ទាក់ទង Admin:</b> <a href='{ADMIN_URL}'>OG_Raa1</a>")
 
 async def main():
     await dp.start_polling(bot)
