@@ -1,5 +1,8 @@
 aiogram
-SpeechRecognition
-groq
+rembg
+onnxruntime
+pillow
+speechrecognition
 pydub
-gtts
+gTTS
+requests
