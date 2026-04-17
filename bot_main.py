@@ -14,11 +14,13 @@ from aiogram.client.default import DefaultBotProperties
 from pydub import AudioSegment
 from gtts import gTTS
 
-# --- ការកំណត់សម្រាប់ការកាត់ឱ្យលឿន ---
+# --- ការកំណត់សម្រាប់ការកាត់ឱ្យលឿន និងប្តូរពណ៌ ---
 from rembg import remove, new_session
+from PIL import Image
 
 # បង្កើត Session ទុកជាមុនដើម្បីកុំឱ្យវា Load យូរពេល User ផ្ញើរូបមក
-fast_session = new_session("u2net_lite") # ប្រើ Model ស្រាល តែលឿនខ្លាំង
+# ប្រើ Model 'u2net_lite' ដើម្បីឱ្យលឿនបំផុត
+fast_session = new_session("u2net_lite") 
 
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
@@ -32,6 +34,7 @@ logging.basicConfig(level=logging.INFO)
 user_languages = {}
 user_voices = {}
 last_transcription = {}
+last_input_data = {} # សម្រាប់រក្សារូបភាពដើមទុករក្សាពណ៌
 
 # --- KEYBOARDS (រក្សាភាសា និងទម្រង់ដើម) ---
 def get_main_menu():
@@ -60,41 +63,111 @@ def get_file_type_keyboard():
         [InlineKeyboardButton(text="🎞 ASS", callback_data="export_ass"), InlineKeyboardButton(text="📦 JSON", callback_data="export_json")]
     ])
 
+# មុខងារថ្មី៖ Keybaord សម្រាប់ជ្រើសរើសពណ៌ Background
+def get_color_keyboard(file_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬜ ពណ៌ស", callback_data=f"color_white_{file_id}"), InlineKeyboardButton(text="⬛ ពណ៌ខ្មៅ", callback_data=f"color_black_{file_id}")],
+        [InlineKeyboardButton(text="🟦 ពណ៌ខៀវ", callback_data=f"color_blue_{file_id}"), InlineKeyboardButton(text="🟥 ពណ៌ក្រហម", callback_data=f"color_red_{file_id}")],
+        [InlineKeyboardButton(text="🖼️ ភាពថ្លា (Transparent)", callback_data=f"color_transparent_{file_id}")],
+        [InlineKeyboardButton(text="❌ បោះបង់", callback_data="cancel_color")]
+    ])
+
+# --- មុខងារគណនាពណ៌ (សម្រាប់ប្រើជំនួយ) ---
+def hex_to_rgb(hex_color):
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
 # --- HANDLERS ---
 
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
-    # រក្សាអក្សរស្វាគមន៍ឱ្យដូចដើម
     await message.answer(
         "<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>\n\n"
-        "សួស្តីអ្នកទាំងអស់គ្នា! នេះគឺជា Bot ស្វ័យប្រវត្តិសម្រាប់បំប្លែងសំឡេង និងកាត់ Background។\n"
+        "សួស្តីអ្នកទាំងអស់គ្នា! នេះគឺជា Bot ស្វ័យប្រវត្តិសម្រាប់បំប្លែងសំឡេង កាត់ Background ល្បឿនលឿន និងប្តូរពណ៌។\n"
         "សូមជ្រើសរើសមុខងារខាងក្រោម៖", 
         reply_markup=get_main_menu()
     )
-# --- មុខងារកាត់រូបភាពល្បឿនលឿន (Fast Background Removal) ---
+
+# --- មុខងារកាត់រូបភាពល្បឿនលឿន និងប្តូរពណ៌ ---
 @dp.message(F.photo)
-async def auto_remove_bg(message: types.Message):
+async def ask_remove_bg_with_color(message: types.Message):
     photo_id = message.photo[-1].file_id
     msg = await message.reply("⚡ <b>កំពុងកាត់ Background យ៉ាងលឿនបំផុត...</b>")
     
     try:
+        # ទាញយករូបភាពពី Telegram
         file_info = await bot.get_file(photo_id)
         photo_bytes = await bot.download_file(file_info.file_path)
         input_data = photo_bytes.read()
 
-        # ប្រើ Fast Session ដែលបានបង្កើតទុកជាមុន
+        # រក្សារូបភាពដើមទុកសម្រាប់ប្រើពេលដូរពណ៌
+        last_input_data[photo_id] = input_data
+
+        # កាត់ Background យ៉ាងលឿន (ភាពថ្លា)
         output_data = remove(input_data, session=fast_session)
 
+        # ផ្ញើលទ្ធផល (ភាពថ្លា) ទៅ User សិន
         await message.answer_document(
             BufferedInputFile(output_data, filename="RAA_NO_BG.png"),
-            caption="<b>✅ កាត់រួចរាល់យ៉ាងរហ័ស!</b>"
+            caption="<b>✅ កាត់រួចរាល់យ៉ាងរហ័ស!</b>\n\n"
+                    "<i>តើប្អូនចង់ដាក់ពណ៌ Background ជំនួសទេ? សូមជ្រើសរើសពណ៌ខាងក្រោម៖</i>",
+            reply_markup=get_color_keyboard(photo_id)
         )
         await msg.delete()
         
     except Exception as e:
         await msg.edit_text(f"❌ Error: {str(e)}")
 
-# --- មុខងារសំឡេង (រក្សាភាសាទាំង ៤) ---
+# Handler សម្រាប់ទទួលការចុចប៊ូតុងពណ៌
+@dp.callback_query(F.data.startswith("color_"))
+async def process_color_change(callback: types.CallbackQuery):
+    color_code = callback.data.split("_")[1]
+    file_id = callback.data.split("_")[2]
+    
+    if file_id not in last_input_data:
+        await callback.message.edit_text("❌ Error: មិនមានទិន្នន័យរូបភាពដើម។ សូមផ្ញើរូបភាពម្ដងទៀត។")
+        await callback.answer()
+        return
+
+    await callback.message.edit_text(f"⚡ <b>កំពុងដាក់ពណ៌ Background ({color_code.upper()})...</b>")
+    
+    try:
+        # ទាញយករូបភាពដើម
+        input_data = last_input_data[file_id]
+        
+        # កំណត់ពណ៌
+        if color_code == "transparent":
+            bg_color = (0, 0, 0, 0) # គ្មានពណ៌
+        else:
+            # បំប្លែងឈ្មោះពណ៌ទៅជា RGB
+            color_map = {
+                "white": (255, 255, 255),
+                "black": (0, 0, 0),
+                "blue": (0, 0, 255),
+                "red": (255, 0, 0)
+            }
+            bg_color = color_map.get(color_code, (255, 255, 255))
+        
+        # ដំណើរការកាត់ Background និងដាក់ពណ៌ដោយ rembg (លឿនខ្លាំង)
+        output_data = remove(input_data, session=fast_session, bgcolor=bg_color)
+        
+        # ផ្ញើលទ្ធផលថ្មី
+        await callback.message.answer_document(
+            BufferedInputFile(output_data, filename=f"RAA_BG_{color_code.upper()}.png"),
+            caption=f"<b>✅ បានដាក់ពណ៌ Background {color_code.upper()} រួចរាល់!</b>"
+        )
+        await callback.message.delete()
+        
+    except Exception as e:
+        await callback.message.edit_text(f"❌ កំហុសបច្ចេកទេស: {str(e)}")
+    await callback.answer()
+
+@dp.callback_query(F.data == "cancel_color")
+async def cancel_color(callback: types.CallbackQuery):
+    await callback.message.delete()
+    await callback.answer()
+
+# --- មុខងារសំឡេង (រក្សាទម្រង់ដើម - ភាសាទាំង ៤) ---
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
     user_id = message.from_user.id
@@ -165,7 +238,7 @@ async def set_voice(callback: types.CallbackQuery):
 
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
-    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Fast Auto Remove BG\n• Google Recognition (4 Langs)\n• Dev: THEARA Rupp")
+    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Ultra Fast Auto Remove BG\n• Change Background Color\n• Google Recognition (4 Langs)\n• Dev: THEARA Rupp")
 
 @dp.message(F.text == "👤 ទាក់ទង Admin")
 async def cmd_admin(message: types.Message):
