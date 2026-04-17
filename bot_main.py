@@ -13,8 +13,9 @@ from aiogram.types import (
 from aiogram.client.default import DefaultBotProperties
 from pydub import AudioSegment
 from gtts import gTTS
+
+# --- ហៅ Library មកប្រើ (ដែលកំពុង Error ក្នុង Log) ---
 from rembg import remove
-from fpdf import FPDF # សម្រាប់ PDF
 
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
@@ -29,7 +30,7 @@ user_languages = {}
 user_voices = {}
 last_transcription = {}
 
-# --- KEYBOARDS ---
+# --- KEYBOARDS (រក្សាភាសា និងទម្រង់ដើម) ---
 def get_main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -84,8 +85,7 @@ async def handle_audio(message: types.Message):
     user_id = message.from_user.id
     lang = user_languages.get(user_id, "km")
     voice_choice = user_voices.get(user_id, None)
-    google_lang_map = {"km": "km-KH", "en": "en-US", "ja": "ja-JP", "zh": "zh-CN"}
-    google_lang = google_lang_map.get(lang, "km-KH")
+    google_lang = {"km": "km-KH", "en": "en-US", "ja": "ja-JP", "zh": "zh-CN"}.get(lang, "km-KH")
     
     msg = await message.answer(f"<b>⏳ កំពុងបំប្លែងសំឡេង ({lang.upper()}) ដោយ Google...</b>")
     file_id = message.voice.file_id if message.voice else message.audio.file_id
@@ -98,7 +98,6 @@ async def handle_audio(message: types.Message):
         with sr.AudioFile(wav_path) as source:
             audio_data = recognizer.record(source)
             text_result = recognizer.recognize_google(audio_data, language=google_lang)
-        
         last_transcription[user_id] = text_result
 
         if voice_choice:
@@ -116,47 +115,17 @@ async def handle_audio(message: types.Message):
         for p in [ogg_path, wav_path]:
             if os.path.exists(p): os.remove(p)
 
-# --- មុខងារ EXPORT (កែសម្រួលថ្មីសម្រាប់ PDF និង ASS) ---
 @dp.callback_query(F.data.startswith("export_"))
 async def process_export(callback: types.CallbackQuery):
     file_type = callback.data.split("_")[1]
-    text = last_transcription.get(callback.from_user.id, "No Data")
-    
-    file_content = b""
-    file_name = f"raa_result.{file_type}"
-
-    if file_type == "pdf":
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        # ចំណាំ៖ PDF ធម្មតាមិនទាន់គាំទ្រខ្មែរយូនីកូដទេ បើចង់បានខ្មែរត្រូវដំឡើង Font .ttf បន្ថែម
-        pdf.multi_cell(0, 10, txt=text.encode('latin-1', 'replace').decode('latin-1'))
-        file_content = pdf.output(dest='S').encode('latin-1')
-
-    elif file_type == "ass":
-        ass_template = (
-            "[Script Info]\nScriptType: v4.00+\n\n"
-            "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour\n"
-            "Style: Default,Arial,20,&H00FFFFFF\n\n"
-            "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
-            f"Dialogue: 0,0:00:00.00,0:00:10.00,Default,,0,0,0,,{text}"
-        )
-        file_content = ass_template.encode('utf-8')
-
-    elif file_type == "srt":
-        content = f"1\n00:00:00,000 --> 00:00:10,000\n{text}"
-        file_content = content.encode('utf-8')
-
-    else:
-        file_content = text.encode('utf-8')
-
+    text = last_transcription.get(callback.from_user.id, "មិនមានទិន្នន័យ")
+    content = f"1\n00:00:00,000 --> 00:00:10,000\n{text}" if file_type == "srt" else text
     await callback.message.answer_document(
-        BufferedInputFile(file_content, filename=file_name),
+        BufferedInputFile(content.encode('utf-8'), filename=f"raa_file.{file_type}"),
         caption=f"<b>🎬 ឯកសារ {file_type.upper()} រួចរាល់!</b>"
     )
     await callback.answer()
 
-# --- ប៊ូតុង និងការកំណត់ ---
 @dp.message(F.text == "🌐 ប្តូរភាសា (Language)")
 async def change_lang(message: types.Message):
     await message.answer("<b>🌐 សូមជ្រើសរើសភាសា:</b>", reply_markup=get_lang_keyboard())
@@ -170,10 +139,7 @@ async def set_lang(callback: types.CallbackQuery):
 
 @dp.message(F.text == "🎙️ ជ្រើសរើសសំឡេង AI")
 async def choose_voice(message: types.Message):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👩 ស្រី", callback_data="setvoice_female"), 
-         InlineKeyboardButton(text="👨 ប្រុស", callback_data="setvoice_male")]
-    ])
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👩 ស្រី", callback_data="setvoice_female"), InlineKeyboardButton(text="👨 ប្រុស", callback_data="setvoice_male")]])
     await message.answer("<b>🎙️ សូមជ្រើសរើសភេទសំឡេង AI:</b>", reply_markup=kb)
 
 @dp.callback_query(F.data.startswith("setvoice_"))
@@ -184,7 +150,7 @@ async def set_voice(callback: types.CallbackQuery):
 
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
-    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Auto Remove BG\n• Local Export (PDF, ASS, SRT...)")
+    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Auto Remove BG (Local Engine)\n• Google Recognition (4 Langs)\n• Dev: THEARA Rupp")
 
 @dp.message(F.text == "👤 ទាក់ទង Admin")
 async def cmd_admin(message: types.Message):
