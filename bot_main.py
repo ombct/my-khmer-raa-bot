@@ -14,6 +14,7 @@ from aiogram.client.default import DefaultBotProperties
 from pydub import AudioSegment
 from gtts import gTTS
 from rembg import remove
+from fpdf import FPDF # សម្រាប់ PDF
 
 # --- CONFIGURATION ---
 API_TOKEN = os.getenv('BOT_TOKEN')
@@ -28,7 +29,7 @@ user_languages = {}
 user_voices = {}
 last_transcription = {}
 
-# --- KEYBOARDS (ភាសាទាំង ៤ ដូចដើម) ---
+# --- KEYBOARDS ---
 def get_main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -59,20 +60,17 @@ def get_file_type_keyboard():
 
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
-    await message.answer("<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>\n(ភាសា និងមុខងារដើមមានគ្រប់ទាំងអស់)", reply_markup=get_main_menu())
+    await message.answer("<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>", reply_markup=get_main_menu())
 
-# --- មុខងារ AUTO REMOVE BACKGROUND (Local Engine - Free) ---
 @dp.message(F.photo)
 async def auto_remove_bg(message: types.Message):
     photo_id = message.photo[-1].file_id
     msg = await message.reply("⚡ <b>កំពុងកាត់ Background ដោយស្វ័យប្រវត្តិ...</b>")
-    
     try:
         file_info = await bot.get_file(photo_id)
         photo_bytes = await bot.download_file(file_info.file_path)
         input_data = photo_bytes.read()
         output_data = remove(input_data)
-
         await message.answer_document(
             BufferedInputFile(output_data, filename="RAA_NO_BG.png"),
             caption="<b>✅ កាត់រួចរាល់ដោយជោគជ័យ!</b>"
@@ -81,20 +79,12 @@ async def auto_remove_bg(message: types.Message):
     except Exception as e:
         await msg.edit_text(f"❌ Error: {str(e)}")
 
-# --- មុខងារសំឡេង (ភាសាទាំង ៤) ---
 @dp.message(F.voice | F.audio)
 async def handle_audio(message: types.Message):
     user_id = message.from_user.id
     lang = user_languages.get(user_id, "km")
     voice_choice = user_voices.get(user_id, None)
-    
-    # កូដភាសាសម្រាប់ Google Recognition
-    google_lang_map = {
-        "km": "km-KH",
-        "en": "en-US",
-        "ja": "ja-JP",
-        "zh": "zh-CN"
-    }
+    google_lang_map = {"km": "km-KH", "en": "en-US", "ja": "ja-JP", "zh": "zh-CN"}
     google_lang = google_lang_map.get(lang, "km-KH")
     
     msg = await message.answer(f"<b>⏳ កំពុងបំប្លែងសំឡេង ({lang.upper()}) ដោយ Google...</b>")
@@ -120,27 +110,53 @@ async def handle_audio(message: types.Message):
         await message.answer(f"<b>📝 អត្ថបទ (Google):</b>\n\n<code>{text_result}</code>")
         await message.answer("<b>✅ រួចរាល់! សូមជ្រើសរើសប្រភេទ File:</b>", reply_markup=get_file_type_keyboard())
         await msg.delete()
-
     except Exception as e:
         await message.answer(f"❌ Error: {str(e)}")
     finally:
         for p in [ogg_path, wav_path]:
             if os.path.exists(p): os.remove(p)
 
-# --- មុខងារ EXPORT ---
+# --- មុខងារ EXPORT (កែសម្រួលថ្មីសម្រាប់ PDF និង ASS) ---
 @dp.callback_query(F.data.startswith("export_"))
 async def process_export(callback: types.CallbackQuery):
     file_type = callback.data.split("_")[1]
-    text = last_transcription.get(callback.from_user.id, "មិនមានទិន្នន័យ")
-    content = f"1\n00:00:00,000 --> 00:00:10,000\n{text}" if file_type == "srt" else text
+    text = last_transcription.get(callback.from_user.id, "No Data")
     
+    file_content = b""
+    file_name = f"raa_result.{file_type}"
+
+    if file_type == "pdf":
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        # ចំណាំ៖ PDF ធម្មតាមិនទាន់គាំទ្រខ្មែរយូនីកូដទេ បើចង់បានខ្មែរត្រូវដំឡើង Font .ttf បន្ថែម
+        pdf.multi_cell(0, 10, txt=text.encode('latin-1', 'replace').decode('latin-1'))
+        file_content = pdf.output(dest='S').encode('latin-1')
+
+    elif file_type == "ass":
+        ass_template = (
+            "[Script Info]\nScriptType: v4.00+\n\n"
+            "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour\n"
+            "Style: Default,Arial,20,&H00FFFFFF\n\n"
+            "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+            f"Dialogue: 0,0:00:00.00,0:00:10.00,Default,,0,0,0,,{text}"
+        )
+        file_content = ass_template.encode('utf-8')
+
+    elif file_type == "srt":
+        content = f"1\n00:00:00,000 --> 00:00:10,000\n{text}"
+        file_content = content.encode('utf-8')
+
+    else:
+        file_content = text.encode('utf-8')
+
     await callback.message.answer_document(
-        BufferedInputFile(content.encode('utf-8'), filename=f"raa_file.{file_type}"),
+        BufferedInputFile(file_content, filename=file_name),
         caption=f"<b>🎬 ឯកសារ {file_type.upper()} រួចរាល់!</b>"
     )
     await callback.answer()
 
-# --- ប៊ូតុង និងការកំណត់ផ្សេងៗ ---
+# --- ប៊ូតុង និងការកំណត់ ---
 @dp.message(F.text == "🌐 ប្តូរភាសា (Language)")
 async def change_lang(message: types.Message):
     await message.answer("<b>🌐 សូមជ្រើសរើសភាសា:</b>", reply_markup=get_lang_keyboard())
@@ -168,7 +184,7 @@ async def set_voice(callback: types.CallbackQuery):
 
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
-    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Auto Remove BG\n• Google Recognition (4 Langs)\n• Dev: THEARA Rupp")
+    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Auto Remove BG\n• Local Export (PDF, ASS, SRT...)")
 
 @dp.message(F.text == "👤 ទាក់ទង Admin")
 async def cmd_admin(message: types.Message):
