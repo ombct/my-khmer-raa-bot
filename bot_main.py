@@ -15,7 +15,7 @@ from pydub import AudioSegment
 from gtts import gTTS
 from rembg import remove, new_session
 
-# --- កំណត់ការកាត់ Background ល្បឿនលឿន ---
+# --- កំណត់ការកាត់ Background ---
 fast_session = new_session("u2netp") 
 
 API_TOKEN = os.getenv('BOT_TOKEN')
@@ -26,13 +26,13 @@ dp = Dispatcher()
 recognizer = sr.Recognizer()
 logging.basicConfig(level=logging.INFO)
 
-# ចងចាំទិន្នន័យ (Memory)
+# ចងចាំទិន្នន័យក្នុង Memory
 user_languages = {}
-user_voices = {}
+user_voices = {}  # បើគ្មាន ID ក្នុងនេះ គឺមិនផ្ញើ Voice AI ទេ
 last_transcription = {}
 user_last_image = {}
 
-# --- KEYBOARDS (ខ្មែរ ១០០%) ---
+# --- KEYBOARDS ---
 
 def get_main_menu():
     return ReplyKeyboardMarkup(
@@ -44,16 +44,11 @@ def get_main_menu():
         resize_keyboard=True
     )
 
-def get_lang_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🇰🇭 ខ្មែរ", callback_data="setlang_km"), InlineKeyboardButton(text="🇺🇸 English", callback_data="setlang_en")],
-        [InlineKeyboardButton(text="🇯🇵 Japanese", callback_data="setlang_ja"), InlineKeyboardButton(text="🇨🇳 Chinese", callback_data="setlang_zh")]
-    ])
-
 def get_voice_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👩 សំឡេងស្រី", callback_data="v_female"), 
-         InlineKeyboardButton(text="👨 សំឡេងប្រុស", callback_data="v_male")]
+        [InlineKeyboardButton(text="👩 ភេទស្រី", callback_data="v_female"), 
+         InlineKeyboardButton(text="👨 ភេទប្រុស", callback_data="v_male")],
+        [InlineKeyboardButton(text="🛑 ឈប់ប្រើមុខងារសំឡេង AI", callback_data="v_stop")]
     ])
 
 def get_export_keyboard():
@@ -75,28 +70,26 @@ def get_color_menu():
 
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
-    await message.answer("<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>", reply_markup=get_main_menu())
+    await message.answer("<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>\nរាល់មុខងារដើមទាំងអស់ត្រូវបានរក្សាទុក!", reply_markup=get_main_menu())
 
 # --- មុខងារសំឡេង AI & ភាសា ---
 
-@dp.message(F.text == "🌐 ប្តូរភាសា")
-async def cmd_lang(message: types.Message):
-    await message.answer("<b>🌐 សូមជ្រើសរើសភាសា៖</b>", reply_markup=get_lang_keyboard())
-
-@dp.callback_query(F.data.startswith("setlang_"))
-async def set_lang(callback: types.CallbackQuery):
-    user_languages[callback.from_user.id] = callback.data.split("_")[1]
-    await callback.message.edit_text("✅ បានកំណត់ភាសារួចរាល់!")
-    await callback.answer()
-
 @dp.message(F.text == "🎙️ ជ្រើសរើសសំឡេង AI")
 async def cmd_voice(message: types.Message):
-    await message.answer("<b>🎙️ សូមជ្រើសរើសភេទសំឡេង AI៖</b>", reply_markup=get_voice_keyboard())
+    await message.answer("<b>🎙️ សូមជ្រើសរើសភេទសំឡេង AI ឬបិទវា៖</b>", reply_markup=get_voice_keyboard())
 
 @dp.callback_query(F.data.startswith("v_"))
 async def set_voice(callback: types.CallbackQuery):
-    user_voices[callback.from_user.id] = callback.data.replace("v_", "")
-    await callback.message.edit_text("✅ បានកំណត់សំឡេង AI រួចរាល់!")
+    user_id = callback.from_user.id
+    action = callback.data.replace("v_", "")
+    
+    if action == "stop":
+        if user_id in user_voices:
+            del user_voices[user_id]
+        await callback.message.edit_text("✅ <b>បិទមុខងារសំឡេង AI រួចរាល់!</b>\nBot នឹងផ្ញើត្រឹមតែអត្ថបទប៉ុណ្ណោះ។")
+    else:
+        user_voices[user_id] = action
+        await callback.message.edit_text(f"✅ <b>កំណត់សំឡេង AI ({action.upper()}) រួចរាល់!</b>\nBot នឹងផ្ញើសំឡេង AI ឱ្យប្អូនដោយស្វ័យប្រវត្តិ។")
     await callback.answer()
 
 @dp.message(F.voice | F.audio)
@@ -117,14 +110,14 @@ async def handle_audio(message: types.Message):
             text = recognizer.recognize_google(recognizer.record(source), language=g_lang)
         last_transcription[user_id] = text
         
-        # បើ User ធ្លាប់ជ្រើសរើសសំឡេង AI វានឹងផ្ញើ Voice ឱ្យភ្លាម (Auto)
+        # ឆែកមើលថា User ចង់ប្រើសំឡេង AI ឬអត់
         if user_id in user_voices:
             tts_p = f"{file_id}.mp3"
             gTTS(text=text, lang=lang).save(tts_p)
-            await message.answer_voice(BufferedInputFile.from_file(tts_p))
+            await message.answer_voice(BufferedInputFile.from_file(tts_p), caption="🎙️ <b>សំឡេង AI</b>")
             os.remove(tts_p)
         
-        await message.answer(f"<b>📝 អត្ថបទ៖</b>\n<code>{text}</code>", reply_markup=get_export_keyboard())
+        await message.answer(f"<b>📝 អត្ថបទបំប្លែងបាន៖</b>\n<code>{text}</code>", reply_markup=get_export_keyboard())
         await msg.delete()
     except Exception as e:
         await message.answer(f"❌ Error: {str(e)}")
@@ -132,22 +125,25 @@ async def handle_audio(message: types.Message):
         for p in [ogg, wav]: 
             if os.path.exists(p): os.remove(p)
 
-@dp.callback_query(F.data.startswith("ex_"))
-async def do_export(callback: types.CallbackQuery):
-    f_t = callback.data.replace("ex_", "")
-    txt = last_transcription.get(callback.from_user.id, "No data")
-    await callback.message.answer_document(BufferedInputFile(txt.encode('utf-8'), filename=f"raa_result.{f_t}"))
-    await callback.answer()
+# --- មុខងារផ្សេងៗ (រក្សាភាពដើមទាំងអស់) ---
 
-# --- មុខងារ Remove BG & Color ---
+@dp.message(F.text == "🌐 ប្តូរភាសា")
+async def cmd_lang(message: types.Message):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🇰🇭 ខ្មែរ", callback_data="setlang_km"), InlineKeyboardButton(text="🇺🇸 English", callback_data="setlang_en")],
+        [InlineKeyboardButton(text="🇯🇵 Japanese", callback_data="setlang_ja"), InlineKeyboardButton(text="🇨🇳 Chinese", callback_data="setlang_zh")]
+    ])
+    await message.answer("<b>🌐 សូមជ្រើសរើសភាសា៖</b>", reply_markup=kb)
+
+@dp.callback_query(F.data.startswith("setlang_"))
+async def set_lang(callback: types.CallbackQuery):
+    user_languages[callback.from_user.id] = callback.data.split("_")[1]
+    await callback.message.edit_text("✅ កំណត់ភាសារួចរាល់!")
+    await callback.answer()
 
 @dp.message(F.text == "🖼️ កាត់ Background")
 async def cmd_bg(message: types.Message):
     await message.answer("<b>🖼️ សូមផ្ញើរូបភាពមកកាន់ខ្ញុំ!</b>")
-
-@dp.message(F.text == "🎨 ប្តូរពណ៌ Background")
-async def cmd_color(message: types.Message):
-    await message.answer("<b>🎨 សូមផ្ញើរូបភាពមកដើម្បីជ្រើសរើសពណ៌ថ្មី!</b>")
 
 @dp.message(F.photo)
 async def handle_photo(message: types.Message):
@@ -159,7 +155,6 @@ async def handle_photo(message: types.Message):
         p_bytes = await bot.download_file(file_i.file_path)
         input_d = p_bytes.read()
         user_last_image[user_id] = input_d
-        
         out_d = remove(input_d, session=fast_session)
         await message.answer_document(BufferedInputFile(out_d, filename="RAA_BG.png"), caption="<b>✅ រួចរាល់! ប្តូរពណ៌បានខាងក្រោម៖</b>", reply_markup=get_color_menu())
         await msg.delete()
@@ -183,9 +178,16 @@ async def change_color(callback: types.CallbackQuery):
         await callback.message.answer(f"❌ Error: {str(e)}")
     await callback.answer()
 
+@dp.callback_query(F.data.startswith("ex_"))
+async def do_export(callback: types.CallbackQuery):
+    f_t = callback.data.replace("ex_", "")
+    txt = last_transcription.get(callback.from_user.id, "No data")
+    await callback.message.answer_document(BufferedInputFile(txt.encode('utf-8'), filename=f"raa_result.{f_t}"))
+    await callback.answer()
+
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
-    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Remove BG & Color\n• Speech to Text (All Formats)\n• Dev: Ouk Theara (RUPP)")
+    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n• Remove BG & Color\n• Speech to Text (SRT, VTT, PDF, etc.)\n• Dev: Ouk Theara (RUPP)")
 
 @dp.message(F.text == "👤 ទាក់ទង Admin")
 async def cmd_admin(message: types.Message):
