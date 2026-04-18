@@ -1,8 +1,8 @@
 aiogram
 rembg
-onnxruntime
-pillow
 speechrecognition
 pydub
 gTTS
-requests
+numpy
+opencv-python-headless
+mediapipe
