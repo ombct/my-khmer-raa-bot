@@ -1,11 +1,10 @@
 aiogram
 rembg
-onnruntime
-pillow
 speechrecognition
 pydub
-gITS
-requests
-opencv-python-headless
+gTTS
 numpy
+opencv-python-headless
 mediapipe
+python-docx
+fpdf
