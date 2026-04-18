@@ -1,9 +1,11 @@
-aiogram
+aiogram==3.4.1
+mediapipe==0.10.11
+opencv-python-headless
+numpy
 speechrecognition
 pydub
 gTTS
-numpy
-opencv-python-headless
-mediapipe
 python-docx
 fpdf
+pandas
+openpyxl
