@@ -1,7 +1,4 @@
-import os
-import logging
-import asyncio
-import io
+import os, logging, asyncio, io, json
 import speech_recognition as sr
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -18,10 +15,11 @@ import cv2
 import mediapipe as mp
 from docx import Document
 from fpdf import FPDF
+import pandas as pd
 
-# --- AI Setup (Mediapipe សម្រាប់កាត់ Background ឥតខ្ចោះ) ---
-mp_selfie_segmentation = mp.solutions.selfie_segmentation
-segmenter = mp_selfie_segmentation.SelfieSegmentation(model_selection=1)
+# --- AI Setup (High Quality) ---
+mp_selfie = mp.solutions.selfie_segmentation
+segmenter = mp_selfie.SelfieSegmentation(model_selection=1)
 
 API_TOKEN = os.getenv('BOT_TOKEN')
 ADMIN_URL = "https://t.me/OG_Raa1"
@@ -31,10 +29,11 @@ dp = Dispatcher()
 recognizer = sr.Recognizer()
 logging.basicConfig(level=logging.INFO)
 
-# រក្សាទុកទិន្នន័យចំណូលចិត្ត User
-user_languages, user_voices, last_transcription, user_last_image = {}, {}, {}, {}
+# Storage
+user_settings = {} # {user_id: {'lang': 'km', 'voice': 'fm'}}
+last_text = {} 
 
-# --- ១. KEYBOARDS (៦ ប៊ូតុងពេញលេញ តាមរូបភាព) ---
+# --- ១. KEYBOARDS (៦ ប៊ូតុង តាមរូបភាពប្អូន) ---
 def get_main_menu():
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="🌐 ប្តូរភាសា"), KeyboardButton(text="🎙️ ជ្រើសរើសសំឡេង AI")],
@@ -42,74 +41,137 @@ def get_main_menu():
         [KeyboardButton(text="ℹ️ ព័ត៌មាន Bot"), KeyboardButton(text="👤 ទាក់ទង Admin")]
     ], resize_keyboard=True)
 
-# --- ២. មុខងារប្ដូរភាសា និង សំឡេង AI ---
+def get_export_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📄 PDF", callback_data="ex_pdf"), InlineKeyboardButton(text="📝 DOCX", callback_data="ex_docx")],
+        [InlineKeyboardButton(text="🎬 SRT", callback_data="ex_srt"), InlineKeyboardButton(text="📺 VTT", callback_data="ex_vtt")],
+        [InlineKeyboardButton(text="📊 XLSX", callback_data="ex_xlsx"), InlineKeyboardButton(text="📦 JSON", callback_data="ex_json")]
+    ])
+
+# --- ២. មុខងារប្ដូរភាសា & សំឡេង ---
 @dp.message(F.text == "🌐 ប្តូរភាសា")
 async def cmd_lang(message: types.Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🇰🇭 ខ្មែរ", callback_data="l_km"), InlineKeyboardButton(text="🇺🇸 English", callback_data="l_en")],
-        [InlineKeyboardButton(text="🇯🇵 Japanese", callback_data="l_ja"), InlineKeyboardButton(text="🇨🇳 Chinese", callback_data="l_zh")]
+        [InlineKeyboardButton(text="🇰🇭 ខ្មែរ", callback_data="setl_km"), InlineKeyboardButton(text="🇺🇸 English", callback_data="setl_en")],
+        [InlineKeyboardButton(text="🇯🇵 Japanese", callback_data="setl_ja"), InlineKeyboardButton(text="🇨🇳 Chinese", callback_data="setl_zh")]
     ])
-    await message.answer("<b>🌐 សូមជ្រើសរើសភាសា៖</b>", reply_markup=kb)
+    await message.answer("<b>🌐 ជ្រើសរើសភាសាសម្រាប់បំប្លែងសំឡេង៖</b>", reply_markup=kb)
 
 @dp.message(F.text == "🎙️ ជ្រើសរើសសំឡេង AI")
 async def cmd_voice(message: types.Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👩 ភេទស្រី", callback_data="v_fm"), InlineKeyboardButton(text="👨 ភេទប្រុស", callback_data="v_m")],
-        [InlineKeyboardButton(text="🛑 ឈប់ប្រើសំឡេង AI", callback_data="v_off")]
+        [InlineKeyboardButton(text="👩 ភេទស្រី", callback_data="setv_fm"), InlineKeyboardButton(text="👨 ភេទប្រុស", callback_data="setv_m")],
+        [InlineKeyboardButton(text="🛑 ឈប់ប្រើសំឡេង AI", callback_data="setv_off")]
     ])
-    await message.answer("<b>🎙️ សូមជ្រើសរើសប្រភេទសំឡេង AI៖</b>", reply_markup=kb)
+    await message.answer("<b>🎙️ ជ្រើសរើសប្រភេទសំឡេង AI៖</b>", reply_markup=kb)
 
-# --- ៣. មុខងារកាត់ Background (Mediapipe AI) ---
+# --- ៣. មុខងារ SPEECH TO TEXT & EXPORT ---
+@dp.message(F.voice | F.audio)
+async def handle_audio(message: types.Message):
+    uid = message.from_user.id
+    conf = user_settings.get(uid, {'lang': 'km', 'voice': 'off'})
+    g_lang = {"km": "km-KH", "en": "en-US", "ja": "ja-JP", "zh": "zh-CN"}.get(conf['lang'], "km-KH")
+    
+    msg = await message.answer("⏳ <b>កំពុងបំប្លែង...</b>")
+    file_id = message.voice.file_id if message.voice else message.audio.file_id
+    file = await bot.get_file(file_id)
+    ogg_p, wav_p = f"{file_id}.ogg", f"{file_id}.wav"
+    await bot.download_file(file.file_path, ogg_p)
+    
+    try:
+        AudioSegment.from_file(ogg_p).export(wav_p, format="wav")
+        with sr.AudioFile(wav_p) as source:
+            text = recognizer.recognize_google(recognizer.record(source), language=g_lang)
+        last_text[uid] = text
+        
+        if conf['voice'] != 'off':
+            tts_p = f"{file_id}.mp3"
+            gTTS(text=text, lang=conf['lang']).save(tts_p)
+            await message.answer_voice(BufferedInputFile.from_file(tts_p))
+            os.remove(tts_p)
+            
+        await message.answer(f"<b>📝 អត្ថបទ៖</b>\n<code>{text}</code>", reply_markup=get_export_menu())
+        await msg.delete()
+    except: await msg.edit_text("❌ មិនអាចបំប្លែងបាន!")
+    finally:
+        for p in [ogg_p, wav_p]: 
+            if os.path.exists(p): os.remove(p)
+
+# --- ៤. មុខងារកាត់ BACKGROUND (PERFECT QUALITY) ---
 @dp.message(F.text == "🖼️ កាត់ Background")
-async def cmd_remove_bg(message: types.Message):
+async def cmd_rem(message: types.Message):
     await message.answer("<b>🖼️ សូមផ្ញើរូបភាពមកកាន់ខ្ញុំ!</b>")
 
-@dp.photo
+@dp.message(F.photo)
 async def handle_photo(message: types.Message):
-    user_id = message.from_user.id
-    msg = await message.reply("⚡ <b>AI កំពុងកាត់ឱ្យ... (ឥតខ្ចោះ)</b>")
+    msg = await message.reply("⚡ <b>AI កំពុងកាត់ឱ្យ...</b>")
     try:
         file_i = await bot.get_file(message.photo[-1].file_id)
         p_bytes = await bot.download_file(file_i.file_path)
-        input_data = p_bytes.read()
-        user_last_image[user_id] = input_data
         
-        nparr = np.frombuffer(input_data, np.uint8)
+        nparr = np.frombuffer(p_bytes.read(), np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        results = segmenter.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        condition = np.stack((results.segmentation_mask,) * 3, axis=-1) > 0.1
+        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
-        out_img = np.where(condition, img, np.zeros(img.shape, dtype=np.uint8))
-        tmp = cv2.cvtColor(out_img, cv2.COLOR_BGR2GRAY)
-        _, alpha = cv2.threshold(tmp, 0, 255, cv2.THRESH_BINARY)
-        b, g, r = cv2.split(out_img)
-        dst = cv2.merge([b, g, r, alpha], 4)
-
-        _, buffer = cv2.imencode('.png', dst)
-        await message.answer_document(BufferedInputFile(buffer.tobytes(), filename="RAA_BG_PERFECT.png"), caption="<b>✅ កាត់រួចរាល់!</b>")
+        res = segmenter.process(rgb_img)
+        mask = res.segmentation_mask > 0.5
+        
+        b, g, r = cv2.split(img)
+        a = (mask * 255).astype(np.uint8)
+        rgba = cv2.merge([b, g, r, a])
+        
+        _, buffer = cv2.imencode('.png', rgba)
+        await message.answer_document(BufferedInputFile(buffer.tobytes(), filename="RAA_PERFECT.png"), caption="<b>✅ រួចរាល់!</b>")
         await msg.delete()
     except Exception as e: await msg.edit_text(f"❌ Error: {str(e)}")
 
-# --- ៤. មុខងារ Start & ផ្សេងៗ ---
-@dp.message(Command("start"))
-async def send_welcome(message: types.Message):
-    await message.answer("<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>", reply_markup=get_main_menu())
+# --- ៥. EXPORT SYSTEM ---
+@dp.callback_query(F.data.startswith("ex_"))
+async def export_file(callback: types.CallbackQuery):
+    mode = callback.data.replace("ex_", "")
+    text = last_text.get(callback.from_user.id, "No data")
+    
+    if mode == "pdf":
+        pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=12)
+        pdf.multi_cell(0, 10, txt=text.encode('latin-1', 'ignore').decode('latin-1'))
+        data = pdf.output(dest='S').encode('latin-1')
+    elif mode == "docx":
+        doc = Document(); doc.add_paragraph(text); s = io.BytesIO(); doc.save(s); data = s.getvalue()
+    elif mode == "srt": data = f"1\n00:00:00,000 --> 00:00:10,000\n{text}".encode('utf-8')
+    elif mode == "vtt": data = f"WEBVTT\n\n00:00:00.000 --> 00:00:10.000\n{text}".encode('utf-8')
+    elif mode == "xlsx":
+        df = pd.DataFrame([{"Content": text}]); s = io.BytesIO()
+        with pd.ExcelWriter(s, engine='openpyxl') as writer: df.to_excel(writer, index=False)
+        data = s.getvalue()
+    else: data = json.dumps({"text": text}, ensure_ascii=False).encode('utf-8')
 
+    await callback.message.answer_document(BufferedInputFile(data, filename=f"RAA_RESULT.{mode}"))
+    await callback.answer()
+
+# --- ៦. SETTINGS CALLBACKS ---
+@dp.callback_query(F.data.startswith(("setl_", "setv_")))
+async def handle_settings(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    if uid not in user_settings: user_settings[uid] = {'lang': 'km', 'voice': 'off'}
+    
+    if callback.data.startswith("setl_"): user_settings[uid]['lang'] = callback.data.replace("setl_", "")
+    else: user_settings[uid]['voice'] = callback.data.replace("setv_", "")
+    
+    await callback.message.edit_text("✅ រួចរាល់!")
+    await callback.answer()
+
+# --- ៧. ADMIN & INFO ---
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
-    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n- Voice AI, SRT, PDF, DOCX, Perfect BG Removal")
+    await message.answer("<b>🤖 RaaBot Pro v10.0 Full</b>\n- Voice AI, SRT, PDF, DOCX, XLSX, JSON\n- Perfect BG Removal")
 
 @dp.message(F.text == "👤 ទាក់ទង Admin")
 async def cmd_admin(message: types.Message):
     await message.answer(f"<b>Admin:</b> <a href='{ADMIN_URL}'>OG_Raa1</a>")
 
-# Callback Handler សម្រាប់ប្ដូរភាសា និង សំឡេង
-@dp.callback_query(F.data.startswith(("v_", "l_")))
-async def handle_settings(callback: types.CallbackQuery):
-    if callback.data.startswith("v_"): user_voices[callback.from_user.id] = callback.data
-    else: user_languages[callback.from_user.id] = callback.data
-    await callback.message.edit_text("✅ រួចរាល់!")
-    await callback.answer()
+@dp.message(Command("start"))
+async def start(message: types.Message):
+    await message.answer("<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro</b>", reply_markup=get_main_menu())
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
