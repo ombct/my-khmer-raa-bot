@@ -57,7 +57,9 @@ def get_export_keyboard():
 # --- ៣. HANDLERS ---
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
-    await message.answer("<b>🎙 RaaBot Pro v10.0 (៦ ប៊ូតុងពេញលេញ)</b>", reply_markup=get_main_menu())
+    await message.answer("<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>       សួស្តីអ្នកទាំងអស់គ្នា! នេះគឺជា Bot ស្វ័យប្រវត្តិសម្រាប់បំប្លែងសំឡេង កាត់ Background ល្បឿនលឿន និងប្តូរពណ៌។\n"
+        "សូមជ្រើសរើសមុខងារខាងក្រោម👇៖", reply_markup=get_main_menu())
+
 
 @dp.message(F.text == "🌐 ប្តូរភាសា")
 async def cmd_lang(message: types.Message):
@@ -164,7 +166,7 @@ async def handle_callbacks(callback: types.CallbackQuery):
 
 @dp.message(F.text == "ℹ️ ព័ត៌មាន Bot")
 async def cmd_info(message: types.Message):
-    await message.answer("<b>🤖 RaaBot Pro v10.0</b>\n- AI: ISNet (High Resolution)\n- Features: SRT, VTT, Voice AI, Remove BG")
+    await message.answer("<b>>🤖 RaaBot Pro v10.0</b>\n• Auto Remove BG & Change Color\n• Google Recognition (4 Langs)\n• Dev: THEARA Rupp")
 
 @dp.message(F.text == "👤 ទាក់ទង Admin")
 async def cmd_admin(message: types.Message):
