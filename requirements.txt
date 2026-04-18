@@ -1,5 +1,4 @@
 aiogram
-rembg
 speechrecognition
 pydub
 gTTS
