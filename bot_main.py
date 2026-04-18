@@ -73,8 +73,7 @@ def get_export_keyboard():
 
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
-    await message.answer("<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>
-    "សួស្តីអ្នកទាំងអស់គ្នា! នេះគឺជា Bot ស្វ័យប្រវត្តិសម្រាប់បំប្លែងសំឡេង កាត់ Background ល្បឿនលឿន និងប្តូរពណ៌។\n"
+    await message.answer("<b>🎙 ស្វាគមន៍មកកាន់ RaaBot Pro v10.0</b>       សួស្តីអ្នកទាំងអស់គ្នា! នេះគឺជា Bot ស្វ័យប្រវត្តិសម្រាប់បំប្លែងសំឡេង កាត់ Background ល្បឿនលឿន និងប្តូរពណ៌។\n"
         "សូមជ្រើសរើសមុខងារខាងក្រោម👇៖", reply_markup=get_main_menu())
 
 # មុខងារប្តូរភាសា
