@@ -1,8 +1,8 @@
 aiogram
 rembg
-onnruntime
+onnxruntime
 pillow
 speechrecognition
 pydub
-gITS
+gTTS
 requests
