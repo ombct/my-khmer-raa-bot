@@ -1,8 +1,11 @@
-aiogram
-rembg
-onnxruntime
-pillow
+aiogram==3.4.1
+mediapipe==0.10.11
+opencv-python-headless
+numpy
 speechrecognition
 pydub
 gTTS
-requests
+python-docx
+fpdf
+pandas
+openpyxl
